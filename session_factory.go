@@ -431,6 +431,18 @@ func (f sessionFactory) newSession(
 		s.DisableMessagePersist = !persistMessages
 	}
 
+	if settings.HasSetting(config.InChanCapacity) {
+		if s.InChanCapacity, err = settings.IntSetting(config.InChanCapacity); err != nil {
+			return
+		} else if s.InChanCapacity < 0 {
+			err = IncorrectFormatForSetting{Setting: config.InChanCapacity, Value: []byte(strconv.Itoa(s.InChanCapacity))}
+			return
+		}
+	} else {
+		// Default to 1 buffered message per channel
+		s.InChanCapacity = 1
+	}
+
 	if f.BuildInitiators {
 		if err = f.buildInitiatorSettings(s, settings); err != nil {
 			return

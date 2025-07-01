@@ -489,6 +489,16 @@ const (
 	// Valid Values:
 	//  - Any positive integer
 	MaxLatency string = "MaxLatency"
+
+	// InChanCapacity sets the maximum number of messages that can be buffered in the channel for incoming FIX messages.
+	//
+	// Required: No
+	//
+	// Default: 1
+	//
+	// Valid Values:
+	//  - A positive integer, or zero for an unbuffered channel
+	InChanCapacity string = "InChanCapacity"
 )
 
 const (
