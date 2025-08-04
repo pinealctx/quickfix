@@ -160,7 +160,7 @@ func ParseMessage(msg *Message, rawMessage *bytes.Buffer) (err error) {
 	return ParseMessageWithDataDictionary(msg, rawMessage, nil, nil)
 }
 
-// ParseMessageWithDataDictionary constructs a Message from a byte slice wrapping a FIX message using an optional session and application DataDictionary for reference.
+// ParseMessageWithDataDictionary constructs a Message from a byte slice wrapping a FIX message using an optional Session and application DataDictionary for reference.
 func ParseMessageWithDataDictionary(
 	msg *Message,
 	rawMessage *bytes.Buffer,

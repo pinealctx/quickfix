@@ -35,25 +35,25 @@ func TestLogonStateTestSuite(t *testing.T) {
 
 func (s *LogonStateTestSuite) SetupTest() {
 	s.Init()
-	s.session.stateMachine.State = logonState{}
+	s.Session.stateMachine.State = logonState{}
 }
 
 func (s *LogonStateTestSuite) TestPreliminary() {
-	s.False(s.session.IsLoggedOn())
-	s.True(s.session.IsConnected())
-	s.True(s.session.IsSessionTime())
+	s.False(s.Session.IsLoggedOn())
+	s.True(s.Session.IsConnected())
+	s.True(s.Session.IsSessionTime())
 }
 
 func (s *LogonStateTestSuite) TestTimeoutLogonTimeout() {
-	s.Timeout(s.session, internal.LogonTimeout)
+	s.Timeout(s.Session, internal.LogonTimeout)
 	s.State(latentState{})
 }
 
 func (s *LogonStateTestSuite) TestTimeoutLogonTimeoutInitiatedLogon() {
-	s.session.InitiateLogon = true
+	s.Session.InitiateLogon = true
 
 	s.MockApp.On("OnLogout")
-	s.Timeout(s.session, internal.LogonTimeout)
+	s.Timeout(s.Session, internal.LogonTimeout)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -63,18 +63,18 @@ func (s *LogonStateTestSuite) TestTimeoutNotLogonTimeout() {
 	tests := []internal.Event{internal.PeerTimeout, internal.NeedHeartbeat, internal.LogoutTimeout}
 
 	for _, test := range tests {
-		s.Timeout(s.session, test)
+		s.Timeout(s.Session, test)
 		s.State(logonState{})
 	}
 }
 
 func (s *LogonStateTestSuite) TestDisconnected() {
-	s.session.Disconnected(s.session)
+	s.Session.Disconnected(s.Session)
 	s.State(latentState{})
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInNotLogon() {
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -92,14 +92,14 @@ func (s *LogonStateTestSuite) TestFixMsgInLogon() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.Zero(s.session.HeartBtInt)
-	s.fixMsgIn(s.session, logon)
+	s.Zero(s.Session.HeartBtInt)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
 	s.State(inSession{})
-	s.Equal(32*time.Second, s.session.HeartBtInt) // Should be written from logon message.
-	s.False(s.session.HeartBtIntOverride)
+	s.Equal(32*time.Second, s.Session.HeartBtInt) // Should be written from logon message.
+	s.False(s.Session.HeartBtIntOverride)
 
 	s.LastToAdminMessageSent()
 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
@@ -120,15 +120,15 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonHeartBtIntOverride() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.session.HeartBtIntOverride = true
-	s.session.HeartBtInt = time.Second
-	s.fixMsgIn(s.session, logon)
+	s.Session.HeartBtIntOverride = true
+	s.Session.HeartBtInt = time.Second
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
 	s.State(inSession{})
-	s.Equal(time.Second, s.session.HeartBtInt) // Should not have changed.
-	s.True(s.session.HeartBtIntOverride)
+	s.Equal(time.Second, s.Session.HeartBtInt) // Should not have changed.
+	s.True(s.Session.HeartBtIntOverride)
 
 	s.LastToAdminMessageSent()
 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
@@ -139,7 +139,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonHeartBtIntOverride() {
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInLogonEnableLastMsgSeqNumProcessed() {
-	s.session.EnableLastMsgSeqNumProcessed = true
+	s.Session.EnableLastMsgSeqNumProcessed = true
 
 	s.MessageFactory.SetNextSeqNum(2)
 	s.IncrNextSenderMsgSeqNum()
@@ -151,7 +151,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonEnableLastMsgSeqNumProcessed() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
@@ -170,12 +170,12 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonResetSeqNum() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
 	s.State(inSession{})
-	s.Equal(32*time.Second, s.session.HeartBtInt)
+	s.Equal(32*time.Second, s.Session.HeartBtInt)
 
 	s.LastToAdminMessageSent()
 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
@@ -187,7 +187,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonResetSeqNum() {
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogon() {
-	s.session.InitiateLogon = true
+	s.Session.InitiateLogon = true
 	s.IncrNextSenderMsgSeqNum()
 	s.MessageFactory.seqNum = 1
 	s.IncrNextTargetMsgSeqNum()
@@ -197,7 +197,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogon() {
 
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(inSession{})
@@ -207,8 +207,8 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogon() {
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonExpectResetSeqNum() {
-	s.session.InitiateLogon = true
-	s.session.sentReset = true
+	s.Session.InitiateLogon = true
+	s.Session.sentReset = true
 	s.Require().Nil(s.store.IncrNextSenderMsgSeqNum())
 
 	logon := s.Logon()
@@ -217,7 +217,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonExpectResetSeqNum() 
 
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(inSession{})
@@ -227,8 +227,8 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonExpectResetSeqNum() 
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonRejectedSeqNumNotReset() {
-	s.session.InitiateLogon = true
-	s.session.sentReset = true
+	s.Session.InitiateLogon = true
+	s.Session.sentReset = true
 	s.Require().Nil(s.store.IncrNextSenderMsgSeqNum())
 
 	logon := s.Logon()
@@ -238,7 +238,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonRejectedSeqNumNotRes
 	s.MockApp.On("FromAdmin").Return(RejectLogon{"reject message"})
 	s.MockApp.On("OnLogout")
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -248,8 +248,8 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonRejectedSeqNumNotRes
 }
 
 func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonUnExpectedResetSeqNum() {
-	s.session.InitiateLogon = true
-	s.session.sentReset = false
+	s.Session.InitiateLogon = true
+	s.Session.sentReset = false
 	s.IncrNextTargetMsgSeqNum()
 	s.IncrNextSenderMsgSeqNum()
 
@@ -259,7 +259,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonInitiateLogonUnExpectedResetSeqNu
 
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(inSession{})
@@ -273,7 +273,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonRefreshOnLogon() {
 
 	for _, doRefresh := range tests {
 		s.SetupTest()
-		s.session.RefreshOnLogon = doRefresh
+		s.Session.RefreshOnLogon = doRefresh
 
 		logon := s.Logon()
 		logon.Body.SetField(tagHeartBtInt, FIXInt(32))
@@ -284,7 +284,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonRefreshOnLogon() {
 		s.MockApp.On("FromAdmin").Return(nil)
 		s.MockApp.On("OnLogon")
 		s.MockApp.On("ToAdmin")
-		s.fixMsgIn(s.session, logon)
+		s.fixMsgIn(s.Session, logon)
 
 		s.MockStore.AssertExpectations(s.T())
 	}
@@ -295,13 +295,13 @@ func (s *LogonStateTestSuite) TestStop() {
 
 	for _, doInitiateLogon := range tests {
 		s.SetupTest()
-		s.session.InitiateLogon = doInitiateLogon
+		s.Session.InitiateLogon = doInitiateLogon
 
 		if doInitiateLogon {
 			s.MockApp.On("OnLogout")
 		}
 
-		s.session.Stop(s.session)
+		s.Session.Stop(s.Session)
 		s.MockApp.AssertExpectations(s.T())
 		s.Disconnected()
 		s.Stopped()
@@ -318,7 +318,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonRejectLogon() {
 
 	s.MockApp.On("FromAdmin").Return(RejectLogon{"reject message"})
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
@@ -340,7 +340,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonSeqNumTooHigh() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
@@ -354,19 +354,19 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonSeqNumTooHigh() {
 	s.Require().Nil(err)
 	s.MessageType(string(msgTypeLogon), sentMessage)
 
-	s.session.sendQueued(true)
+	s.Session.sendQueued(true)
 	s.MessageType(string(msgTypeResendRequest), s.MockApp.lastToAdmin)
 	s.FieldEquals(tagBeginSeqNo, 1, s.MockApp.lastToAdmin.Body)
 
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MessageFactory.SetNextSeqNum(1)
-	s.fixMsgIn(s.session, s.SequenceReset(3))
+	s.fixMsgIn(s.Session, s.SequenceReset(3))
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(3)
 
 	s.MessageFactory.SetNextSeqNum(3)
 	s.MockApp.On("FromAdmin").Return(nil)
-	s.fixMsgIn(s.session, s.SequenceReset(7))
+	s.fixMsgIn(s.Session, s.SequenceReset(7))
 	s.State(inSession{})
 	s.NextTargetMsgSeqNum(7)
 }
@@ -382,7 +382,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonSeqNumTooLow() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("ToAdmin")
 	s.NextTargetMsgSeqNum(2)
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.State(latentState{})
 	s.NextTargetMsgSeqNum(2)
@@ -395,7 +395,7 @@ func (s *LogonStateTestSuite) TestFixMsgInLogonSeqNumTooLow() {
 	s.Require().Nil(err)
 	s.MessageType(string(msgTypeLogout), sentMessage)
 
-	s.session.sendQueued(true)
+	s.Session.sendQueued(true)
 	s.MessageType(string(msgTypeLogout), s.MockApp.lastToAdmin)
 	s.FieldEquals(tagText, "MsgSeqNum too low, expecting 2 but received 1", s.MockApp.lastToAdmin.Body)
 }
@@ -410,7 +410,7 @@ func (s *LogonStateTestSuite) TestStayLoggedInOnReset() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogon")
 	s.MockApp.On("ToAdmin")
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
 	s.MockApp.AssertExpectations(s.T())
 
@@ -422,10 +422,10 @@ func (s *LogonStateTestSuite) TestStayLoggedInOnReset() {
 	s.NextTargetMsgSeqNum(3)
 	s.NextSenderMsgSeqNum(3)
 
-	s.fixMsgIn(s.session, logon)
+	s.fixMsgIn(s.Session, logon)
 
-	s.True(s.session.IsConnected())
-	s.True(s.session.IsLoggedOn())
+	s.True(s.Session.IsConnected())
+	s.True(s.Session.IsLoggedOn())
 
 	s.NextTargetMsgSeqNum(2)
 	s.NextSenderMsgSeqNum(2)

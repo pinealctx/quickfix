@@ -37,13 +37,13 @@ type Acceptor struct {
 	logFactory            LogFactory
 	storeFactory          MessageStoreFactory
 	globalLog             Log
-	sessions              map[SessionID]*session
+	sessions              map[SessionID]*Session
 	sessionGroup          sync.WaitGroup
 	listenerShutdown      sync.WaitGroup
 	dynamicSessions       bool
 	dynamicQualifier      bool
 	dynamicQualifierCount int
-	dynamicSessionChan    chan *session
+	dynamicSessionChan    chan *Session
 	sessionAddr           sync.Map
 	sessionHostPort       map[SessionID]int
 	listeners             map[string]net.Listener
@@ -111,13 +111,13 @@ func (a *Acceptor) Start() (err error) {
 
 	for _, s := range a.sessions {
 		a.sessionGroup.Add(1)
-		go func(s *session) {
+		go func(s *Session) {
 			s.run()
 			a.sessionGroup.Done()
 		}(s)
 	}
 	if a.dynamicSessions {
-		a.dynamicSessionChan = make(chan *session)
+		a.dynamicSessionChan = make(chan *Session)
 		a.sessionGroup.Add(1)
 		go func() {
 			a.dynamicSessionsLoop()
@@ -157,7 +157,7 @@ func (a *Acceptor) Stop() {
 	}
 }
 
-// RemoteAddr gets remote IP address for a given session.
+// RemoteAddr gets remote IP address for a given Session.
 func (a *Acceptor) RemoteAddr(sessionID SessionID) (net.Addr, bool) {
 	addr, ok := a.sessionAddr.Load(sessionID)
 	if !ok || addr == nil {
@@ -174,7 +174,7 @@ func NewAcceptor(app Application, storeFactory MessageStoreFactory, settings *Se
 		storeFactory:    storeFactory,
 		settings:        settings,
 		logFactory:      logFactory,
-		sessions:        make(map[SessionID]*session),
+		sessions:        make(map[SessionID]*Session),
 		sessionHostPort: make(map[SessionID]int),
 		listeners:       make(map[string]net.Listener),
 	}
@@ -321,10 +321,10 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		return
 	}
 
-	// We have a session ID and a network connection. This seems to be a good place for any custom authentication logic.
+	// We have a Session ID and a network connection. This seems to be a good place for any custom authentication logic.
 	if a.connectionValidator != nil {
 		if err := a.connectionValidator.Validate(netConn, sessID); err != nil {
-			a.globalLog.OnEventf("Unable to validate a connection for session %v: %v", sessID, err.Error())
+			a.globalLog.OnEventf("Unable to validate a connection for Session %v: %v", sessID, err.Error())
 			return
 		}
 	}
@@ -341,7 +341,7 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 		}
 		dynamicSession, err := a.sessionFactory.createSession(sessID, a.storeFactory, a.settings.globalSettings.clone(), a.logFactory, a.app)
 		if err != nil {
-			a.globalLog.OnEventf("Dynamic session %v failed to create: %v", sessID, err)
+			a.globalLog.OnEventf("Dynamic Session %v failed to create: %v", sessID, err)
 			return
 		}
 		a.dynamicSessionChan <- dynamicSession
@@ -354,7 +354,7 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 	msgOut := make(chan []byte)
 
 	if err := session.connect(msgIn, msgOut); err != nil {
-		a.globalLog.OnEventf("Unable to accept session %v connection: %v", sessID, err.Error())
+		a.globalLog.OnEventf("Unable to accept Session %v connection: %v", sessID, err.Error())
 		return
 	}
 
@@ -368,7 +368,7 @@ func (a *Acceptor) handleConnection(netConn net.Conn) {
 
 func (a *Acceptor) dynamicSessionsLoop() {
 	var id int
-	var sessions = map[int]*session{}
+	var sessions = map[int]*Session{}
 	var complete = make(chan int)
 	defer close(complete)
 LOOP:
@@ -388,7 +388,7 @@ LOOP:
 				session.run()
 				err := UnregisterSession(session.sessionID)
 				if err != nil {
-					a.globalLog.OnEventf("Unregister dynamic session %v failed: %v", session.sessionID, err)
+					a.globalLog.OnEventf("Unregister dynamic Session %v failed: %v", session.sessionID, err)
 					return
 				}
 				complete <- sessionID
@@ -399,7 +399,7 @@ LOOP:
 				a.sessionAddr.Delete(session.sessionID)
 				delete(sessions, id)
 			} else {
-				a.globalLog.OnEventf("Missing dynamic session %v!", id)
+				a.globalLog.OnEventf("Missing dynamic Session %v!", id)
 			}
 		}
 	}

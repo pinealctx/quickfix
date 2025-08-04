@@ -28,7 +28,7 @@ type stateMachine struct {
 	notifyOnInSessionTime chan interface{}
 }
 
-func (sm *stateMachine) Start(s *session) {
+func (sm *stateMachine) Start(s *Session) {
 	sm.pendingStop = false
 	sm.stopped = false
 
@@ -36,7 +36,7 @@ func (sm *stateMachine) Start(s *session) {
 	sm.CheckSessionTime(s, time.Now())
 }
 
-func (sm *stateMachine) Connect(session *session) {
+func (sm *stateMachine) Connect(session *Session) {
 	// No special logon logic needed for FIX Acceptors.
 	if !session.InitiateLogon {
 		sm.setState(session, logonState{})
@@ -68,7 +68,7 @@ func (sm *stateMachine) Connect(session *session) {
 	time.AfterFunc(session.LogonTimeout, func() { session.sessionEvent <- internal.LogonTimeout })
 }
 
-func (sm *stateMachine) Stop(session *session) {
+func (sm *stateMachine) Stop(session *Session) {
 	sm.pendingStop = true
 	sm.setState(session, sm.State.Stop(session))
 }
@@ -77,13 +77,13 @@ func (sm *stateMachine) Stopped() bool {
 	return sm.stopped
 }
 
-func (sm *stateMachine) Disconnected(session *session) {
+func (sm *stateMachine) Disconnected(session *Session) {
 	if sm.IsConnected() {
 		sm.setState(session, latentState{})
 	}
 }
 
-func (sm *stateMachine) Incoming(session *session, m fixIn) {
+func (sm *stateMachine) Incoming(session *Session, m fixIn) {
 	sm.CheckSessionTime(session, time.Now())
 	if !sm.IsConnected() {
 		return
@@ -92,7 +92,7 @@ func (sm *stateMachine) Incoming(session *session, m fixIn) {
 	session.log.OnIncoming(m.bytes.Bytes())
 
 	msg := NewMessage()
-	if err := ParseMessageWithDataDictionary(msg, m.bytes, session.transportDataDictionary, session.appDataDictionary); err != nil {
+	if err := session.ParseMessage(msg, m.bytes); err != nil {
 		session.log.OnEventf("Msg Parse Error: %v, %q", err.Error(), m.bytes)
 	} else {
 		msg.ReceiveTime = m.receiveTime
@@ -102,11 +102,11 @@ func (sm *stateMachine) Incoming(session *session, m fixIn) {
 	session.peerTimer.Reset(time.Duration(float64(1.2) * float64(session.HeartBtInt)))
 }
 
-func (sm *stateMachine) fixMsgIn(session *session, m *Message) {
+func (sm *stateMachine) fixMsgIn(session *Session, m *Message) {
 	sm.setState(session, sm.State.FixMsgIn(session, m))
 }
 
-func (sm *stateMachine) SendAppMessages(session *session) {
+func (sm *stateMachine) SendAppMessages(session *Session) {
 	sm.CheckSessionTime(session, time.Now())
 
 	session.sendMutex.Lock()
@@ -119,15 +119,15 @@ func (sm *stateMachine) SendAppMessages(session *session) {
 	}
 }
 
-func (sm *stateMachine) Timeout(session *session, e internal.Event) {
+func (sm *stateMachine) Timeout(session *Session, e internal.Event) {
 	sm.CheckSessionTime(session, time.Now())
 	sm.setState(session, sm.State.Timeout(session, e))
 }
 
-func (sm *stateMachine) CheckSessionTime(session *session, now time.Time) {
+func (sm *stateMachine) CheckSessionTime(session *Session, now time.Time) {
 	if !session.SessionTime.IsInRange(now) {
 		if sm.IsSessionTime() {
-			session.log.OnEvent("Not in session")
+			session.log.OnEvent("Not in Session")
 		}
 
 		sm.State.ShutdownNow(session)
@@ -140,7 +140,7 @@ func (sm *stateMachine) CheckSessionTime(session *session, now time.Time) {
 	}
 
 	if !sm.IsSessionTime() {
-		session.log.OnEvent("In session")
+		session.log.OnEvent("In Session")
 		sm.notifyInSessionTime()
 		sm.setState(session, latentState{})
 	}
@@ -155,7 +155,7 @@ func (sm *stateMachine) CheckSessionTime(session *session, now time.Time) {
 	}
 }
 
-func (sm *stateMachine) CheckResetTime(session *session, now time.Time) {
+func (sm *stateMachine) CheckResetTime(session *Session, now time.Time) {
 	if session.EnableResetSeqTime {
 		if session.ResetSeqTime.Hour() == now.Hour() &&
 			session.ResetSeqTime.Minute() == now.Minute() &&
@@ -165,7 +165,7 @@ func (sm *stateMachine) CheckResetTime(session *session, now time.Time) {
 	}
 }
 
-func (sm *stateMachine) setState(session *session, nextState sessionState) {
+func (sm *stateMachine) setState(session *Session, nextState sessionState) {
 	if !nextState.IsConnected() {
 		if sm.IsConnected() {
 			sm.handleDisconnectState(session)
@@ -187,7 +187,7 @@ func (sm *stateMachine) notifyInSessionTime() {
 	sm.notifyOnInSessionTime = nil
 }
 
-func (sm *stateMachine) handleDisconnectState(s *session) {
+func (sm *stateMachine) handleDisconnectState(s *Session) {
 	doOnLogout := s.IsLoggedOn()
 
 	switch s.State.(type) {
@@ -218,35 +218,35 @@ func (sm *stateMachine) IsSessionTime() bool {
 	return sm.State.IsSessionTime()
 }
 
-func handleStateError(s *session, err error) sessionState {
+func handleStateError(s *Session, err error) sessionState {
 	s.logError(err)
 	return latentState{}
 }
 
-// sessionState is the current state of the session state machine. The session state determines how the session responds to
+// sessionState is the current state of the Session state machine. The Session state determines how the Session responds to
 // incoming messages, timeouts, and requests to send application messages.
 type sessionState interface {
-	// FixMsgIn is called by the session on incoming messages from the counter party.
-	// The return type is the next session state following message processing.
-	FixMsgIn(*session, *Message) (nextState sessionState)
+	// FixMsgIn is called by the Session on incoming messages from the counter party.
+	// The return type is the next Session state following message processing.
+	FixMsgIn(*Session, *Message) (nextState sessionState)
 
-	// Timeout is called by the session on a timeout event.
-	Timeout(*session, internal.Event) (nextState sessionState)
+	// Timeout is called by the Session on a timeout event.
+	Timeout(*Session, internal.Event) (nextState sessionState)
 
-	// IsLoggedOn returns true if state is logged on an in session, false otherwise.
+	// IsLoggedOn returns true if state is logged on an in Session, false otherwise.
 	IsLoggedOn() bool
 
 	// IsConnected returns true if the state is connected.
 	IsConnected() bool
 
-	// IsSessionTime returns true if the state is in session time.
+	// IsSessionTime returns true if the state is in Session time.
 	IsSessionTime() bool
 
-	// ShutdownNow terminates the session state immediately.
-	ShutdownNow(*session)
+	// ShutdownNow terminates the Session state immediately.
+	ShutdownNow(*Session)
 
 	// Stop triggers a clean stop.
-	Stop(*session) (nextState sessionState)
+	Stop(*Session) (nextState sessionState)
 
 	// Stringer debugging convenience.
 	fmt.Stringer
@@ -264,18 +264,18 @@ func (connected) IsSessionTime() bool { return true }
 type connectedNotLoggedOn struct{ connected }
 
 func (connectedNotLoggedOn) IsLoggedOn() bool     { return false }
-func (connectedNotLoggedOn) ShutdownNow(*session) {}
+func (connectedNotLoggedOn) ShutdownNow(*Session) {}
 
 type loggedOn struct{ connected }
 
 func (loggedOn) IsLoggedOn() bool { return true }
-func (loggedOn) ShutdownNow(s *session) {
+func (loggedOn) ShutdownNow(s *Session) {
 	if err := s.sendLogout(""); err != nil {
 		s.logError(err)
 	}
 }
 
-func (loggedOn) Stop(s *session) (nextState sessionState) {
+func (loggedOn) Stop(s *Session) (nextState sessionState) {
 	if err := s.initiateLogout(""); err != nil {
 		return handleStateError(s, err)
 	}

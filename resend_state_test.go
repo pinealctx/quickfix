@@ -34,24 +34,24 @@ func TestResendStateTestSuite(t *testing.T) {
 
 func (s *resendStateTestSuite) SetupTest() {
 	s.Init()
-	s.session.State = resendState{}
+	s.Session.State = resendState{}
 }
 
 func (s *resendStateTestSuite) TestIsLoggedOn() {
-	s.True(s.session.IsLoggedOn())
+	s.True(s.Session.IsLoggedOn())
 }
 
 func (s *resendStateTestSuite) TestIsConnected() {
-	s.True(s.session.IsConnected())
+	s.True(s.Session.IsConnected())
 }
 
 func (s *resendStateTestSuite) TestIsSessionTime() {
-	s.True(s.session.IsSessionTime())
+	s.True(s.Session.IsSessionTime())
 }
 
 func (s *resendStateTestSuite) TestTimeoutPeerTimeout() {
 	s.MockApp.On("ToAdmin")
-	s.session.Timeout(s.session, internal.PeerTimeout)
+	s.Session.Timeout(s.Session, internal.PeerTimeout)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(pendingTimeout{resendState{}})
@@ -61,28 +61,28 @@ func (s *resendStateTestSuite) TestTimeoutUnchangedIgnoreLogonLogoutTimeout() {
 	tests := []internal.Event{internal.LogonTimeout, internal.LogoutTimeout}
 
 	for _, event := range tests {
-		s.session.Timeout(s.session, event)
+		s.Session.Timeout(s.Session, event)
 		s.State(resendState{})
 	}
 }
 
 func (s *resendStateTestSuite) TestTimeoutUnchangedNeedHeartbeat() {
 	s.MockApp.On("ToAdmin")
-	s.session.Timeout(s.session, internal.NeedHeartbeat)
+	s.Session.Timeout(s.Session, internal.NeedHeartbeat)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(resendState{})
 }
 
 func (s *resendStateTestSuite) TestFixMsgIn() {
-	s.session.State = inSession{}
+	s.Session.State = inSession{}
 
-	// In session expects seq number 1, send too high.
+	// In Session expects seq number 1, send too high.
 	s.MessageFactory.SetNextSeqNum(2)
 	s.MockApp.On("ToAdmin")
 
 	msgSeqNum2 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum2)
+	s.fixMsgIn(s.Session, msgSeqNum2)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(resendState{})
@@ -92,19 +92,19 @@ func (s *resendStateTestSuite) TestFixMsgIn() {
 	s.NextTargetMsgSeqNum(1)
 
 	msgSeqNum3 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum3)
+	s.fixMsgIn(s.Session, msgSeqNum3)
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
 
 	msgSeqNum4 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum4)
+	s.fixMsgIn(s.Session, msgSeqNum4)
 
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
 
 	s.MessageFactory.SetNextSeqNum(1)
 	s.MockApp.On("FromApp").Return(nil)
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertNumberOfCalls(s.T(), "FromApp", 4)
 	s.State(inSession{})
@@ -112,14 +112,14 @@ func (s *resendStateTestSuite) TestFixMsgIn() {
 }
 
 func (s *resendStateTestSuite) TestFixMsgInSequenceReset() {
-	s.session.State = inSession{}
+	s.Session.State = inSession{}
 
-	// In session expects seq number 1, send too high.
+	// In Session expects seq number 1, send too high.
 	s.MessageFactory.SetNextSeqNum(3)
 	s.MockApp.On("ToAdmin")
 
 	msgSeqNum3 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum3)
+	s.fixMsgIn(s.Session, msgSeqNum3)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(resendState{})
@@ -130,12 +130,12 @@ func (s *resendStateTestSuite) TestFixMsgInSequenceReset() {
 
 	s.MessageFactory.SetNextSeqNum(1)
 	s.MockApp.On("FromAdmin").Return(nil)
-	s.fixMsgIn(s.session, s.SequenceReset(2))
+	s.fixMsgIn(s.Session, s.SequenceReset(2))
 	s.NextTargetMsgSeqNum(2)
 	s.State(resendState{})
 
 	s.MockApp.On("FromApp").Return(nil)
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertNumberOfCalls(s.T(), "FromApp", 2)
 	s.NextTargetMsgSeqNum(4)
@@ -143,15 +143,15 @@ func (s *resendStateTestSuite) TestFixMsgInSequenceReset() {
 }
 
 func (s *resendStateTestSuite) TestFixMsgInResendChunk() {
-	s.session.State = inSession{}
+	s.Session.State = inSession{}
 	s.ResendRequestChunkSize = 2
 
-	// In session expects seq number 1, send too high.
+	// In Session expects seq number 1, send too high.
 	s.MessageFactory.SetNextSeqNum(4)
 	s.MockApp.On("ToAdmin")
 
 	msgSeqNum4 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum4)
+	s.fixMsgIn(s.Session, msgSeqNum4)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(resendState{})
@@ -162,25 +162,25 @@ func (s *resendStateTestSuite) TestFixMsgInResendChunk() {
 	s.NextTargetMsgSeqNum(1)
 
 	msgSeqNum5 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum5)
+	s.fixMsgIn(s.Session, msgSeqNum5)
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
 
 	msgSeqNum6 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum6)
+	s.fixMsgIn(s.Session, msgSeqNum6)
 
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
 
 	s.MessageFactory.SetNextSeqNum(1)
 	s.MockApp.On("FromApp").Return(nil)
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertNumberOfCalls(s.T(), "FromApp", 1)
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(2)
 
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 	s.MockApp.AssertNumberOfCalls(s.T(), "FromApp", 2)
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(3)
@@ -194,15 +194,15 @@ func (s *resendStateTestSuite) TestFixMsgInResendChunk() {
 // TestFixMsgResendWithOldSendingTime tests that we suspend staleness checks during replay
 // as a replayed message may be arbitrarily old.
 func (s *resendStateTestSuite) TestFixMsgResendWithOldSendingTime() {
-	s.session.State = inSession{}
+	s.Session.State = inSession{}
 	s.ResendRequestChunkSize = 2
 
-	// In session expects seq number 1, send too high.
+	// In Session expects seq number 1, send too high.
 	s.MessageFactory.SetNextSeqNum(4)
 	s.MockApp.On("ToAdmin")
 
 	msgSeqNum4 := s.NewOrderSingle()
-	s.fixMsgIn(s.session, msgSeqNum4)
+	s.fixMsgIn(s.Session, msgSeqNum4)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(resendState{})
@@ -215,7 +215,7 @@ func (s *resendStateTestSuite) TestFixMsgResendWithOldSendingTime() {
 	msgSeqNum5 := s.NewOrderSingle()
 	// Set the sending time far enough in the past to trip the staleness check.
 	msgSeqNum5.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: time.Now().Add(-s.MaxLatency)})
-	s.fixMsgIn(s.session, msgSeqNum5)
+	s.fixMsgIn(s.Session, msgSeqNum5)
 	s.State(resendState{})
 	s.NextTargetMsgSeqNum(1)
 }

@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-// SessionSettings maps session settings to values with typed accessors.
+// SessionSettings maps Session settings to values with typed accessors.
 type SessionSettings struct {
 	settings map[string][]byte
 }

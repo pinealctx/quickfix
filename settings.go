@@ -25,7 +25,7 @@ import (
 	"github.com/quickfixgo/quickfix/config"
 )
 
-// The Settings type represents a collection of global and session settings.
+// The Settings type represents a collection of global and Session settings.
 type Settings struct {
 	globalSettings  *SessionSettings
 	sessionSettings map[SessionID]*SessionSettings
@@ -145,13 +145,13 @@ func ParseSettings(reader io.Reader) (*Settings, error) {
 	return s, err
 }
 
-// GlobalSettings are default setting inherited by all session settings.
+// GlobalSettings are default setting inherited by all Session settings.
 func (s *Settings) GlobalSettings() *SessionSettings {
 	s.lazyInit()
 	return s.globalSettings
 }
 
-// SessionSettings return all session settings overlaying globalsettings.
+// SessionSettings return all Session settings overlaying globalsettings.
 func (s *Settings) SessionSettings() map[SessionID]*SessionSettings {
 	allSessionSettings := make(map[SessionID]*SessionSettings)
 
@@ -164,7 +164,7 @@ func (s *Settings) SessionSettings() map[SessionID]*SessionSettings {
 	return allSessionSettings
 }
 
-// AddSession adds Session Settings to Settings instance. Returns an error if session settings with duplicate sessionID has already been added.
+// AddSession adds Session Settings to Settings instance. Returns an error if Session settings with duplicate sessionID has already been added.
 func (s *Settings) AddSession(sessionSettings *SessionSettings) (SessionID, error) {
 	s.lazyInit()
 
@@ -182,7 +182,7 @@ func (s *Settings) AddSession(sessionSettings *SessionSettings) (SessionID, erro
 	}
 
 	if _, dup := s.sessionSettings[sessionID]; dup {
-		return sessionID, fmt.Errorf("duplicate session configured for %v", sessionID)
+		return sessionID, fmt.Errorf("duplicate Session configured for %v", sessionID)
 	}
 
 	s.sessionSettings[sessionID] = sessionSettings

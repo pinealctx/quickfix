@@ -44,7 +44,7 @@ type MessageStore interface {
 	Close() error
 }
 
-// The MessageStoreFactory interface is used by session to create a session specific message store.
+// The MessageStoreFactory interface is used by Session to create a Session specific message store.
 type MessageStoreFactory interface {
 	Create(sessionID SessionID) (MessageStore, error)
 }

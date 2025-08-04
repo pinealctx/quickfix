@@ -46,7 +46,7 @@ const (
 type MessageRejectError interface {
 	error
 
-	// RejectReason, tag 373 for session rejects, tag 380 for business rejects.
+	// RejectReason, tag 373 for Session rejects, tag 380 for business rejects.
 	RejectReason() int
 	BusinessRejectRefID() string
 	RefTagID() *Tag

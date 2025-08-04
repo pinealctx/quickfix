@@ -42,10 +42,10 @@ func (s *PendingTimeoutTestSuite) TestIsConnectedIsLoggedOn() {
 	}
 
 	for _, state := range tests {
-		s.session.State = state
+		s.Session.State = state
 
-		s.True(s.session.IsConnected())
-		s.True(s.session.IsLoggedOn())
+		s.True(s.Session.IsConnected())
+		s.True(s.Session.IsLoggedOn())
 	}
 }
 
@@ -56,10 +56,10 @@ func (s *PendingTimeoutTestSuite) TestSessionTimeout() {
 	}
 
 	for _, state := range tests {
-		s.session.State = state
+		s.Session.State = state
 
 		s.MockApp.On("OnLogout").Return(nil)
-		s.session.Timeout(s.session, internal.PeerTimeout)
+		s.Session.Timeout(s.Session, internal.PeerTimeout)
 
 		s.MockApp.AssertExpectations(s.T())
 		s.State(latentState{})
@@ -75,10 +75,10 @@ func (s *PendingTimeoutTestSuite) TestTimeoutUnchangedState() {
 	testEvents := []internal.Event{internal.NeedHeartbeat, internal.LogonTimeout, internal.LogoutTimeout}
 
 	for _, state := range tests {
-		s.session.State = state
+		s.Session.State = state
 
 		for _, event := range testEvents {
-			s.session.Timeout(s.session, event)
+			s.Session.Timeout(s.Session, event)
 			s.State(state)
 		}
 	}
@@ -92,10 +92,10 @@ func (s *PendingTimeoutTestSuite) TestDisconnected() {
 
 	for _, state := range tests {
 		s.SetupTest()
-		s.session.State = state
+		s.Session.State = state
 
 		s.MockApp.On("OnLogout").Return(nil)
-		s.session.Disconnected(s.session)
+		s.Session.Disconnected(s.Session)
 
 		s.MockApp.AssertExpectations(s.T())
 		s.State(latentState{})

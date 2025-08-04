@@ -619,7 +619,7 @@ func (s *SessionFactorySuite) TestNewSessionBuildInitiatorsValidLogonTimeout() {
 }
 
 func (s *SessionFactorySuite) TestConfigureSocketConnectAddress() {
-	sess := new(session)
+	sess := new(Session)
 	err := s.configureSocketConnectAddress(sess, s.SessionSettings)
 	s.NotNil(err, "SocketConnectHost and SocketConnectPort should be required")
 
@@ -639,7 +639,7 @@ func (s *SessionFactorySuite) TestConfigureSocketConnectAddress() {
 	}
 
 	for _, test := range tests {
-		sess = new(session)
+		sess = new(Session)
 		s.SessionSettings.Set(config.SocketConnectHost, test.host)
 		s.SessionSettings.Set(config.SocketConnectPort, test.port)
 		err = s.configureSocketConnectAddress(sess, s.SessionSettings)
@@ -650,7 +650,7 @@ func (s *SessionFactorySuite) TestConfigureSocketConnectAddress() {
 }
 
 func (s *SessionFactorySuite) TestConfigureSocketConnectAddressMulti() {
-	session := new(session)
+	session := new(Session)
 	s.SessionSettings.Set(config.SocketConnectHost, "127.0.0.1")
 	s.SessionSettings.Set(config.SocketConnectPort, "3000")
 

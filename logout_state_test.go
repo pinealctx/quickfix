@@ -33,18 +33,18 @@ func TestLogoutStateTestSuite(t *testing.T) {
 
 func (s *LogoutStateTestSuite) SetupTest() {
 	s.Init()
-	s.session.State = logoutState{}
+	s.Session.State = logoutState{}
 }
 
 func (s *LogoutStateTestSuite) TestPreliminary() {
-	s.False(s.session.IsLoggedOn())
-	s.True(s.session.IsConnected())
-	s.True(s.session.IsSessionTime())
+	s.False(s.Session.IsLoggedOn())
+	s.True(s.Session.IsConnected())
+	s.True(s.Session.IsSessionTime())
 }
 
 func (s *LogoutStateTestSuite) TestTimeoutLogoutTimeout() {
 	s.MockApp.On("OnLogout").Return(nil)
-	s.Timeout(s.session, internal.LogoutTimeout)
+	s.Timeout(s.Session, internal.LogoutTimeout)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -54,14 +54,14 @@ func (s *LogoutStateTestSuite) TestTimeoutNotLogoutTimeout() {
 	tests := []internal.Event{internal.PeerTimeout, internal.NeedHeartbeat, internal.LogonTimeout}
 
 	for _, test := range tests {
-		s.Timeout(s.session, test)
+		s.Timeout(s.Session, test)
 		s.State(logoutState{})
 	}
 }
 
 func (s *LogoutStateTestSuite) TestDisconnected() {
 	s.MockApp.On("OnLogout").Return(nil)
-	s.session.Disconnected(s.session)
+	s.Session.Disconnected(s.Session)
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -69,7 +69,7 @@ func (s *LogoutStateTestSuite) TestDisconnected() {
 
 func (s *LogoutStateTestSuite) TestFixMsgInNotLogout() {
 	s.MockApp.On("FromApp").Return(nil)
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(logoutState{})
@@ -79,7 +79,7 @@ func (s *LogoutStateTestSuite) TestFixMsgInNotLogout() {
 func (s *LogoutStateTestSuite) TestFixMsgInNotLogoutReject() {
 	s.MockApp.On("FromApp").Return(ConditionallyRequiredFieldMissing(Tag(11)))
 	s.MockApp.On("ToApp").Return(nil)
-	s.fixMsgIn(s.session, s.NewOrderSingle())
+	s.fixMsgIn(s.Session, s.NewOrderSingle())
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(logoutState{})
@@ -92,7 +92,7 @@ func (s *LogoutStateTestSuite) TestFixMsgInNotLogoutReject() {
 func (s *LogoutStateTestSuite) TestFixMsgInLogout() {
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogout").Return(nil)
-	s.fixMsgIn(s.session, s.Logout())
+	s.fixMsgIn(s.Session, s.Logout())
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -102,7 +102,7 @@ func (s *LogoutStateTestSuite) TestFixMsgInLogout() {
 }
 
 func (s *LogoutStateTestSuite) TestFixMsgInLogoutResetOnLogout() {
-	s.session.ResetOnLogout = true
+	s.Session.ResetOnLogout = true
 
 	s.MockApp.On("ToApp").Return(nil)
 	s.Nil(s.queueForSend(s.NewOrderSingle()))
@@ -110,7 +110,7 @@ func (s *LogoutStateTestSuite) TestFixMsgInLogoutResetOnLogout() {
 
 	s.MockApp.On("FromAdmin").Return(nil)
 	s.MockApp.On("OnLogout").Return(nil)
-	s.fixMsgIn(s.session, s.Logout())
+	s.fixMsgIn(s.Session, s.Logout())
 
 	s.MockApp.AssertExpectations(s.T())
 	s.State(latentState{})
@@ -122,7 +122,7 @@ func (s *LogoutStateTestSuite) TestFixMsgInLogoutResetOnLogout() {
 }
 
 func (s *LogoutStateTestSuite) TestStop() {
-	s.session.Stop(s.session)
+	s.Session.Stop(s.Session)
 	s.State(logoutState{})
 	s.NotStopped()
 }

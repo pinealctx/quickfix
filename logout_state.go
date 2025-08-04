@@ -21,7 +21,7 @@ type logoutState struct{ connectedNotLoggedOn }
 
 func (state logoutState) String() string { return "Logout State" }
 
-func (state logoutState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
+func (state logoutState) FixMsgIn(session *Session, msg *Message) (nextState sessionState) {
 	nextState = inSession{}.FixMsgIn(session, msg)
 	if nextState, ok := nextState.(latentState); ok {
 		return nextState
@@ -30,7 +30,7 @@ func (state logoutState) FixMsgIn(session *session, msg *Message) (nextState ses
 	return state
 }
 
-func (state logoutState) Timeout(session *session, event internal.Event) (nextState sessionState) {
+func (state logoutState) Timeout(session *Session, event internal.Event) (nextState sessionState) {
 	switch event {
 	case internal.LogoutTimeout:
 		session.log.OnEvent("Timed out waiting for logout response")
@@ -40,6 +40,6 @@ func (state logoutState) Timeout(session *session, event internal.Event) (nextSt
 	return state
 }
 
-func (state logoutState) Stop(_ *session) (nextstate sessionState) {
+func (state logoutState) Stop(_ *Session) (nextstate sessionState) {
 	return state
 }

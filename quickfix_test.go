@@ -204,7 +204,7 @@ type SessionSuiteRig struct {
 	MessageFactory
 	MockApp   MockApp
 	MockStore MockStore
-	*session
+	*Session
 	Receiver MockSessionReceiver
 }
 
@@ -213,7 +213,7 @@ func (s *SessionSuiteRig) Init() {
 	s.MockStore = MockStore{}
 	s.MessageFactory = MessageFactory{}
 	s.Receiver = newMockSessionReceiver()
-	s.session = &session{
+	s.Session = &Session{
 		sessionID:    SessionID{BeginString: "FIX.4.2", TargetCompID: "TW", SenderCompID: "ISLD"},
 		store:        &s.MockStore,
 		application:  &s.MockApp,
@@ -225,7 +225,7 @@ func (s *SessionSuiteRig) Init() {
 }
 
 func (s *SessionSuiteRig) State(state sessionState) {
-	s.IsType(state, s.session.State, "session state should be %v", state)
+	s.IsType(state, s.Session.State, "Session state should be %v", state)
 }
 
 func (s *SessionSuiteRig) MessageSentEquals(msg *Message) {
@@ -245,11 +245,11 @@ func (s *SessionSuiteRig) LastToAdminMessageSent() {
 }
 
 func (s *SessionSuiteRig) NotStopped() {
-	s.False(s.session.Stopped(), "session should not be stopped")
+	s.False(s.Session.Stopped(), "Session should not be stopped")
 }
 
 func (s *SessionSuiteRig) Stopped() {
-	s.True(s.session.Stopped(), "session should be stopped")
+	s.True(s.Session.Stopped(), "Session should be stopped")
 }
 
 func (s *SessionSuiteRig) Disconnected() {
@@ -264,7 +264,7 @@ func (s *SessionSuiteRig) NoMessageSent() {
 }
 
 func (s *SessionSuiteRig) NoMessageQueued() {
-	s.Empty(s.session.toSend, "no messages should be queueud")
+	s.Empty(s.Session.toSend, "no messages should be queueud")
 }
 
 func (s *SessionSuiteRig) ExpectStoreReset() {
@@ -273,23 +273,23 @@ func (s *SessionSuiteRig) ExpectStoreReset() {
 }
 
 func (s *SessionSuiteRig) NextTargetMsgSeqNum(expected int) {
-	s.Equal(expected, s.session.store.NextTargetMsgSeqNum(), "NextTargetMsgSeqNum should be %v ", expected)
+	s.Equal(expected, s.Session.store.NextTargetMsgSeqNum(), "NextTargetMsgSeqNum should be %v ", expected)
 }
 
 func (s *SessionSuiteRig) NextSenderMsgSeqNum(expected int) {
-	s.Equal(expected, s.session.store.NextSenderMsgSeqNum(), "NextSenderMsgSeqNum should be %v", expected)
+	s.Equal(expected, s.Session.store.NextSenderMsgSeqNum(), "NextSenderMsgSeqNum should be %v", expected)
 }
 
 func (s *SessionSuiteRig) IncrNextSenderMsgSeqNum() {
-	s.Require().Nil(s.session.store.IncrNextSenderMsgSeqNum())
+	s.Require().Nil(s.Session.store.IncrNextSenderMsgSeqNum())
 }
 
 func (s *SessionSuiteRig) IncrNextTargetMsgSeqNum() {
-	s.Require().Nil(s.session.store.IncrNextTargetMsgSeqNum())
+	s.Require().Nil(s.Session.store.IncrNextTargetMsgSeqNum())
 }
 
 func (s *SessionSuiteRig) NoMessagePersisted(seqNum int) {
-	persistedMessages, err := s.session.store.GetMessages(seqNum, seqNum)
+	persistedMessages, err := s.Session.store.GetMessages(seqNum, seqNum)
 	s.Nil(err)
 	s.Empty(persistedMessages, "The message should not be persisted")
 }
@@ -299,7 +299,7 @@ func (s *SessionSuiteRig) MessagePersisted(msg *Message) {
 	seqNum, err := msg.Header.GetInt(tagMsgSeqNum)
 	s.Nil(err, "message should have seq num")
 
-	persistedMessages, err := s.session.store.GetMessages(seqNum, seqNum)
+	persistedMessages, err := s.Session.store.GetMessages(seqNum, seqNum)
 	s.Nil(err)
 	s.Len(persistedMessages, 1, "a message should be stored at %v", seqNum)
 	s.MessageEqualsBytes(persistedMessages[0], msg)

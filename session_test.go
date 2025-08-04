@@ -41,17 +41,17 @@ func TestSessionSuite(t *testing.T) {
 
 func (s *SessionSuite) SetupTest() {
 	s.Init()
-	s.Require().Nil(s.session.store.Reset())
-	s.session.State = latentState{}
+	s.Require().Nil(s.Session.store.Reset())
+	s.Session.State = latentState{}
 }
 
 func (s *SessionSuite) TestFillDefaultHeader() {
-	s.session.sessionID.BeginString = "FIX.4.2"
-	s.session.sessionID.TargetCompID = "TAR"
-	s.session.sessionID.SenderCompID = "SND"
+	s.Session.sessionID.BeginString = "FIX.4.2"
+	s.Session.sessionID.TargetCompID = "TAR"
+	s.Session.sessionID.SenderCompID = "SND"
 
 	msg := NewMessage()
-	s.session.fillDefaultHeader(msg, nil)
+	s.Session.fillDefaultHeader(msg, nil)
 	s.FieldEquals(tagBeginString, "FIX.4.2", msg.Header)
 	s.FieldEquals(tagTargetCompID, "TAR", msg.Header)
 	s.FieldEquals(tagSenderCompID, "SND", msg.Header)
@@ -60,16 +60,16 @@ func (s *SessionSuite) TestFillDefaultHeader() {
 	s.False(msg.Header.Has(tagTargetSubID))
 	s.False(msg.Header.Has(tagTargetLocationID))
 
-	s.session.sessionID.BeginString = "FIX.4.3"
-	s.session.sessionID.TargetCompID = "TAR"
-	s.session.sessionID.TargetSubID = "TARS"
-	s.session.sessionID.TargetLocationID = "TARL"
-	s.session.sessionID.SenderCompID = "SND"
-	s.session.sessionID.SenderSubID = "SNDS"
-	s.session.sessionID.SenderLocationID = "SNDL"
+	s.Session.sessionID.BeginString = "FIX.4.3"
+	s.Session.sessionID.TargetCompID = "TAR"
+	s.Session.sessionID.TargetSubID = "TARS"
+	s.Session.sessionID.TargetLocationID = "TARL"
+	s.Session.sessionID.SenderCompID = "SND"
+	s.Session.sessionID.SenderSubID = "SNDS"
+	s.Session.sessionID.SenderLocationID = "SNDL"
 
 	msg = NewMessage()
-	s.session.fillDefaultHeader(msg, nil)
+	s.Session.fillDefaultHeader(msg, nil)
 	s.FieldEquals(tagBeginString, "FIX.4.3", msg.Header)
 	s.FieldEquals(tagTargetCompID, "TAR", msg.Header)
 	s.FieldEquals(tagTargetSubID, "TARS", msg.Header)
@@ -98,11 +98,11 @@ func (s *SessionSuite) TestInsertSendingTime() {
 	}
 
 	for _, test := range tests {
-		s.session.sessionID.BeginString = test.BeginString
+		s.Session.sessionID.BeginString = test.BeginString
 		s.timestampPrecision = test.Precision
 
 		msg := NewMessage()
-		s.session.insertSendingTime(msg)
+		s.Session.insertSendingTime(msg)
 
 		var f FIXUTCTimestamp
 		s.Nil(msg.Header.GetField(tagSendingTime, &f))
@@ -111,8 +111,8 @@ func (s *SessionSuite) TestInsertSendingTime() {
 }
 
 func (s *SessionSuite) TestCheckCorrectCompID() {
-	s.session.sessionID.TargetCompID = "TAR"
-	s.session.sessionID.SenderCompID = "SND"
+	s.Session.sessionID.TargetCompID = "TAR"
+	s.Session.sessionID.SenderCompID = "SND"
 
 	var testCases = []struct {
 		senderCompID *FIXString
@@ -148,7 +148,7 @@ func (s *SessionSuite) TestCheckCorrectCompID() {
 			msg.Header.SetField(tagTargetCompID, tc.targetCompID)
 		}
 
-		rej := s.session.checkCompID(msg)
+		rej := s.Session.checkCompID(msg)
 
 		if !tc.returnsError {
 			s.Require().Nil(rej)
@@ -164,83 +164,83 @@ func (s *SessionSuite) TestCheckBeginString() {
 	msg := NewMessage()
 
 	msg.Header.SetField(tagBeginString, FIXString("FIX.4.4"))
-	err := s.session.checkBeginString(msg)
+	err := s.Session.checkBeginString(msg)
 	s.Require().NotNil(err, "wrong begin string should return error")
 	s.IsType(incorrectBeginString{}, err)
 
-	msg.Header.SetField(tagBeginString, FIXString(s.session.sessionID.BeginString))
-	s.Nil(s.session.checkBeginString(msg))
+	msg.Header.SetField(tagBeginString, FIXString(s.Session.sessionID.BeginString))
+	s.Nil(s.Session.checkBeginString(msg))
 }
 
 func (s *SessionSuite) TestCheckTargetTooHigh() {
 	msg := NewMessage()
-	s.Require().Nil(s.session.store.SetNextTargetMsgSeqNum(45))
+	s.Require().Nil(s.Session.store.SetNextTargetMsgSeqNum(45))
 
-	err := s.session.checkTargetTooHigh(msg)
+	err := s.Session.checkTargetTooHigh(msg)
 	s.Require().NotNil(err, "missing sequence number should return error")
 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
 
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(47))
-	err = s.session.checkTargetTooHigh(msg)
+	err = s.Session.checkTargetTooHigh(msg)
 	s.Require().NotNil(err, "sequence number too high should return an error")
 	s.IsType(targetTooHigh{}, err)
 
 	// Spot on.
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(45))
-	s.Nil(s.session.checkTargetTooHigh(msg))
+	s.Nil(s.Session.checkTargetTooHigh(msg))
 }
 
 func (s *SessionSuite) TestCheckSendingTime() {
-	s.session.MaxLatency = time.Duration(120) * time.Second
+	s.Session.MaxLatency = time.Duration(120) * time.Second
 	msg := NewMessage()
 
-	err := s.session.checkSendingTime(msg)
+	err := s.Session.checkSendingTime(msg)
 	s.Require().NotNil(err, "sending time is a required field")
 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
 
 	sendingTime := time.Now().Add(time.Duration(-200) * time.Second)
 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
 
-	err = s.session.checkSendingTime(msg)
+	err = s.Session.checkSendingTime(msg)
 	s.Require().NotNil(err, "sending time too late should give error")
 	s.Equal(rejectReasonSendingTimeAccuracyProblem, err.RejectReason())
 
 	sendingTime = time.Now().Add(time.Duration(200) * time.Second)
 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
 
-	err = s.session.checkSendingTime(msg)
+	err = s.Session.checkSendingTime(msg)
 	s.Require().NotNil(err, "future sending time should give error")
 	s.Equal(rejectReasonSendingTimeAccuracyProblem, err.RejectReason())
 
 	sendingTime = time.Now()
 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
 
-	s.Nil(s.session.checkSendingTime(msg), "sending time should be ok")
+	s.Nil(s.Session.checkSendingTime(msg), "sending time should be ok")
 
-	s.session.SkipCheckLatency = true
+	s.Session.SkipCheckLatency = true
 	sendingTime = time.Now().Add(time.Duration(-200) * time.Second)
 	msg.Header.SetField(tagSendingTime, FIXUTCTimestamp{Time: sendingTime})
-	err = s.session.checkSendingTime(msg)
+	err = s.Session.checkSendingTime(msg)
 	s.Require().Nil(err, "should skip latency check")
 }
 
 func (s *SessionSuite) TestCheckTargetTooLow() {
 	msg := NewMessage()
-	s.Require().Nil(s.session.store.SetNextTargetMsgSeqNum(45))
+	s.Require().Nil(s.Session.store.SetNextTargetMsgSeqNum(45))
 
-	err := s.session.checkTargetTooLow(msg)
+	err := s.Session.checkTargetTooLow(msg)
 	s.Require().NotNil(err, "sequence number is required")
 	s.Equal(rejectReasonRequiredTagMissing, err.RejectReason())
 
 	// Too low.
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(43))
-	err = s.session.checkTargetTooLow(msg)
+	err = s.Session.checkTargetTooLow(msg)
 	s.NotNil(err, "sequence number too low should return error")
 	s.IsType(targetTooLow{}, err)
 
 	// Spot on.
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(45))
-	s.Nil(s.session.checkTargetTooLow(msg))
+	s.Nil(s.Session.checkTargetTooLow(msg))
 }
 
 func (s *SessionSuite) TestShouldSendReset() {
@@ -286,10 +286,10 @@ func (s *SessionSuite) TestShouldSendReset() {
 	}
 
 	for _, test := range tests {
-		s.session.sessionID.BeginString = test.BeginString
-		s.session.ResetOnLogon = test.ResetOnLogon
-		s.session.ResetOnDisconnect = test.ResetOnDisconnect
-		s.session.ResetOnLogout = test.ResetOnLogout
+		s.Session.sessionID.BeginString = test.BeginString
+		s.Session.ResetOnLogon = test.ResetOnLogon
+		s.Session.ResetOnDisconnect = test.ResetOnDisconnect
+		s.Session.ResetOnLogout = test.ResetOnLogout
 
 		s.Require().Nil(s.MockStore.SetNextSenderMsgSeqNum(test.NextSenderMsgSeqNum))
 		s.Require().Nil(s.MockStore.SetNextTargetMsgSeqNum(test.NextTargetMsgSeqNum))
@@ -314,10 +314,10 @@ func (s *SessionSuite) TestCheckSessionTimeNoStartTimeEndTime() {
 
 	for _, test := range tests {
 		s.SetupTest()
-		s.session.SessionTime = nil
-		s.session.State = test.before
+		s.Session.SessionTime = nil
+		s.Session.State = test.before
 
-		s.session.CheckSessionTime(s.session, time.Now())
+		s.Session.CheckSessionTime(s.Session, time.Now())
 		if test.after != nil {
 			s.State(test.after)
 		} else {
@@ -343,7 +343,7 @@ func (s *SessionSuite) TestCheckSessionTimeInRange() {
 
 	for _, test := range tests {
 		s.SetupTest()
-		s.session.State = test.before
+		s.Session.State = test.before
 
 		now := time.Now().UTC()
 		memStore, memErr := NewMemoryStoreFactory().Create(s.sessionID)
@@ -354,7 +354,7 @@ func (s *SessionSuite) TestCheckSessionTimeInRange() {
 		} else {
 			memStore.SetCreationTime(now.Add(time.Duration(-1) * time.Minute))
 		}
-		s.session.store = memStore
+		s.Session.store = memStore
 		s.IncrNextSenderMsgSeqNum()
 		s.IncrNextTargetMsgSeqNum()
 
@@ -365,9 +365,9 @@ func (s *SessionSuite) TestCheckSessionTimeInRange() {
 		)
 		s.Nil(err)
 
-		s.session.SessionTime = sessionTime
+		s.Session.SessionTime = sessionTime
 
-		s.session.CheckSessionTime(s.session, now)
+		s.Session.CheckSessionTime(s.Session, now)
 		if test.after != nil {
 			s.State(test.after)
 		} else {
@@ -403,8 +403,8 @@ func (s *SessionSuite) TestCheckSessionTimeNotInRange() {
 
 	for _, test := range tests {
 		s.SetupTest()
-		s.session.State = test.before
-		s.session.InitiateLogon = test.initiateLogon
+		s.Session.State = test.before
+		s.Session.InitiateLogon = test.initiateLogon
 		s.IncrNextSenderMsgSeqNum()
 		s.IncrNextTargetMsgSeqNum()
 
@@ -416,7 +416,7 @@ func (s *SessionSuite) TestCheckSessionTimeNotInRange() {
 		)
 		s.Nil(err)
 
-		s.session.SessionTime = sessionTime
+		s.Session.SessionTime = sessionTime
 
 		if test.expectOnLogout {
 			s.MockApp.On("OnLogout")
@@ -424,7 +424,7 @@ func (s *SessionSuite) TestCheckSessionTimeNotInRange() {
 		if test.expectSendLogout {
 			s.MockApp.On("ToAdmin")
 		}
-		s.session.CheckSessionTime(s.session, now)
+		s.Session.CheckSessionTime(s.Session, now)
 
 		s.MockApp.AssertExpectations(s.T())
 		s.State(notSessionTime{})
@@ -460,8 +460,8 @@ func (s *SessionSuite) TestCheckSessionTimeInRangeButNotSameRangeAsStore() {
 
 	for _, test := range tests {
 		s.SetupTest()
-		s.session.State = test.before
-		s.session.InitiateLogon = test.initiateLogon
+		s.Session.State = test.before
+		s.Session.InitiateLogon = test.initiateLogon
 		s.Require().Nil(s.store.Reset())
 		s.IncrNextSenderMsgSeqNum()
 		s.IncrNextTargetMsgSeqNum()
@@ -474,7 +474,7 @@ func (s *SessionSuite) TestCheckSessionTimeInRangeButNotSameRangeAsStore() {
 		)
 		s.Nil(err)
 
-		s.session.SessionTime = sessionTime
+		s.Session.SessionTime = sessionTime
 
 		if test.expectOnLogout {
 			s.MockApp.On("OnLogout")
@@ -482,7 +482,7 @@ func (s *SessionSuite) TestCheckSessionTimeInRangeButNotSameRangeAsStore() {
 		if test.expectSendLogout {
 			s.MockApp.On("ToAdmin")
 		}
-		s.session.CheckSessionTime(s.session, now.AddDate(0, 0, 1))
+		s.Session.CheckSessionTime(s.Session, now.AddDate(0, 0, 1))
 
 		s.MockApp.AssertExpectations(s.T())
 		s.State(latentState{})
@@ -514,8 +514,8 @@ func (s *SessionSuite) TestIncomingNotInSessionTime() {
 	for _, test := range tests {
 		s.SetupTest()
 
-		s.session.State = test.before
-		s.session.InitiateLogon = test.initiateLogon
+		s.Session.State = test.before
+		s.Session.InitiateLogon = test.initiateLogon
 		s.IncrNextSenderMsgSeqNum()
 		s.IncrNextTargetMsgSeqNum()
 
@@ -527,7 +527,7 @@ func (s *SessionSuite) TestIncomingNotInSessionTime() {
 		)
 		s.Nil(err)
 
-		s.session.SessionTime = sessionTime
+		s.Session.SessionTime = sessionTime
 		if test.expectOnLogout {
 			s.MockApp.On("OnLogout")
 		}
@@ -538,7 +538,7 @@ func (s *SessionSuite) TestIncomingNotInSessionTime() {
 		msg := s.NewOrderSingle()
 		msgBytes := msg.build()
 
-		s.session.Incoming(s.session, fixIn{bytes: bytes.NewBuffer(msgBytes)})
+		s.Session.Incoming(s.Session, fixIn{bytes: bytes.NewBuffer(msgBytes)})
 		s.MockApp.AssertExpectations(s.T())
 		s.State(notSessionTime{})
 	}
@@ -563,8 +563,8 @@ func (s *SessionSuite) TestSendAppMessagesNotInSessionTime() {
 	for _, test := range tests {
 		s.SetupTest()
 
-		s.session.State = test.before
-		s.session.InitiateLogon = test.initiateLogon
+		s.Session.State = test.before
+		s.Session.InitiateLogon = test.initiateLogon
 		s.IncrNextSenderMsgSeqNum()
 		s.IncrNextTargetMsgSeqNum()
 
@@ -580,7 +580,7 @@ func (s *SessionSuite) TestSendAppMessagesNotInSessionTime() {
 		)
 		s.Nil(err)
 
-		s.session.SessionTime = sessionTime
+		s.Session.SessionTime = sessionTime
 		if test.expectOnLogout {
 			s.MockApp.On("OnLogout")
 		}
@@ -588,7 +588,7 @@ func (s *SessionSuite) TestSendAppMessagesNotInSessionTime() {
 			s.MockApp.On("ToAdmin")
 		}
 
-		s.session.SendAppMessages(s.session)
+		s.Session.SendAppMessages(s.Session)
 		s.MockApp.AssertExpectations(s.T())
 		s.State(notSessionTime{})
 	}
@@ -616,8 +616,8 @@ func (s *SessionSuite) TestTimeoutNotInSessionTime() {
 		for _, event := range events {
 			s.SetupTest()
 
-			s.session.State = test.before
-			s.session.InitiateLogon = test.initiateLogon
+			s.Session.State = test.before
+			s.Session.InitiateLogon = test.initiateLogon
 			s.IncrNextSenderMsgSeqNum()
 			s.IncrNextTargetMsgSeqNum()
 
@@ -629,7 +629,7 @@ func (s *SessionSuite) TestTimeoutNotInSessionTime() {
 			)
 			s.Nil(err)
 
-			s.session.SessionTime = sessionTime
+			s.Session.SessionTime = sessionTime
 			if test.expectOnLogout {
 				s.MockApp.On("OnLogout")
 			}
@@ -637,7 +637,7 @@ func (s *SessionSuite) TestTimeoutNotInSessionTime() {
 				s.MockApp.On("ToAdmin")
 			}
 
-			s.session.Timeout(s.session, event)
+			s.Session.Timeout(s.Session, event)
 			s.MockApp.AssertExpectations(s.T())
 			s.State(notSessionTime{})
 		}
@@ -648,16 +648,16 @@ func (s *SessionSuite) TestOnAdminConnectInitiateLogon() {
 	adminMsg := connect{
 		messageOut: s.Receiver.sendChannel,
 	}
-	s.session.State = latentState{}
-	s.session.HeartBtInt = time.Duration(45) * time.Second
+	s.Session.State = latentState{}
+	s.Session.HeartBtInt = time.Duration(45) * time.Second
 	s.IncrNextSenderMsgSeqNum()
-	s.session.InitiateLogon = true
+	s.Session.InitiateLogon = true
 
 	s.MockApp.On("ToAdmin")
-	s.session.onAdmin(adminMsg)
+	s.Session.onAdmin(adminMsg)
 
 	s.MockApp.AssertExpectations(s.T())
-	s.True(s.session.InitiateLogon)
+	s.True(s.Session.InitiateLogon)
 	s.False(s.sentReset)
 	s.State(logonState{})
 	s.LastToAdminMessageSent()
@@ -671,24 +671,24 @@ func (s *SessionSuite) TestInitiateLogonResetSeqNumFlag() {
 	adminMsg := connect{
 		messageOut: s.Receiver.sendChannel,
 	}
-	s.session.State = latentState{}
-	s.session.HeartBtInt = time.Duration(45) * time.Second
+	s.Session.State = latentState{}
+	s.Session.HeartBtInt = time.Duration(45) * time.Second
 	s.Require().Nil(s.store.Reset())
 	s.NextSenderMsgSeqNum(1)
 	s.NextTargetMsgSeqNum(1)
 	s.IncrNextTargetMsgSeqNum()
 	s.IncrNextSenderMsgSeqNum()
-	s.session.ResetOnLogon = true
-	s.session.InitiateLogon = true
+	s.Session.ResetOnLogon = true
+	s.Session.InitiateLogon = true
 
 	s.NextSenderMsgSeqNum(2)
 	s.NextTargetMsgSeqNum(2)
 
 	s.MockApp.On("ToAdmin")
-	s.session.onAdmin(adminMsg)
+	s.Session.onAdmin(adminMsg)
 
 	s.MockApp.AssertExpectations(s.T())
-	s.True(s.session.InitiateLogon)
+	s.True(s.Session.InitiateLogon)
 	s.True(s.sentReset)
 	s.State(logonState{})
 	s.LastToAdminMessageSent()
@@ -700,20 +700,20 @@ func (s *SessionSuite) TestInitiateLogonResetSeqNumFlag() {
 }
 
 func (s *SessionSuite) TestOnAdminConnectInitiateLogonFIXT11() {
-	s.session.sessionID.BeginString = string(BeginStringFIXT11)
-	s.session.DefaultApplVerID = "8"
-	s.session.InitiateLogon = true
+	s.Session.sessionID.BeginString = string(BeginStringFIXT11)
+	s.Session.DefaultApplVerID = "8"
+	s.Session.InitiateLogon = true
 
 	adminMsg := connect{
 		messageOut: s.Receiver.sendChannel,
 	}
-	s.session.State = latentState{}
+	s.Session.State = latentState{}
 
 	s.MockApp.On("ToAdmin")
-	s.session.onAdmin(adminMsg)
+	s.Session.onAdmin(adminMsg)
 
 	s.MockApp.AssertExpectations(s.T())
-	s.True(s.session.InitiateLogon)
+	s.True(s.Session.InitiateLogon)
 	s.State(logonState{})
 	s.LastToAdminMessageSent()
 	s.MessageType(string(msgTypeLogon), s.MockApp.lastToAdmin)
@@ -725,19 +725,19 @@ func (s *SessionSuite) TestOnAdminConnectRefreshOnLogon() {
 
 	for _, doRefresh := range tests {
 		s.SetupTest()
-		s.session.RefreshOnLogon = doRefresh
+		s.Session.RefreshOnLogon = doRefresh
 
 		adminMsg := connect{
 			messageOut: s.Receiver.sendChannel,
 		}
-		s.session.State = latentState{}
-		s.session.InitiateLogon = true
+		s.Session.State = latentState{}
+		s.Session.InitiateLogon = true
 
 		if doRefresh {
 			s.MockStore.On("Refresh").Return(nil)
 		}
 		s.MockApp.On("ToAdmin")
-		s.session.onAdmin(adminMsg)
+		s.Session.onAdmin(adminMsg)
 
 		s.MockStore.AssertExpectations(s.T())
 	}
@@ -747,11 +747,11 @@ func (s *SessionSuite) TestOnAdminConnectAccept() {
 	adminMsg := connect{
 		messageOut: s.Receiver.sendChannel,
 	}
-	s.session.State = latentState{}
+	s.Session.State = latentState{}
 	s.IncrNextSenderMsgSeqNum()
 
-	s.session.onAdmin(adminMsg)
-	s.False(s.session.InitiateLogon)
+	s.Session.onAdmin(adminMsg)
+	s.False(s.Session.InitiateLogon)
 	s.State(logonState{})
 	s.NoMessageSent()
 	s.NextSenderMsgSeqNum(2)
@@ -762,15 +762,15 @@ func (s *SessionSuite) TestOnAdminConnectNotInSession() {
 
 	for _, doInitiateLogon := range tests {
 		s.SetupTest()
-		s.session.State = notSessionTime{}
+		s.Session.State = notSessionTime{}
 		s.IncrNextSenderMsgSeqNum()
-		s.session.InitiateLogon = doInitiateLogon
+		s.Session.InitiateLogon = doInitiateLogon
 
 		adminMsg := connect{
 			messageOut: s.Receiver.sendChannel,
 		}
 
-		s.session.onAdmin(adminMsg)
+		s.Session.onAdmin(adminMsg)
 
 		s.State(notSessionTime{})
 		s.NoMessageSent()
@@ -780,9 +780,9 @@ func (s *SessionSuite) TestOnAdminConnectNotInSession() {
 }
 
 func (s *SessionSuite) TestOnAdminStop() {
-	s.session.State = logonState{}
+	s.Session.State = logonState{}
 
-	s.session.onAdmin(stopReq{})
+	s.Session.onAdmin(stopReq{})
 	s.Disconnected()
 	s.Stopped()
 }
@@ -791,13 +791,13 @@ func (s *SessionSuite) TestResetOnDisconnect() {
 	s.IncrNextSenderMsgSeqNum()
 	s.IncrNextTargetMsgSeqNum()
 
-	s.session.ResetOnDisconnect = false
-	s.session.onDisconnect()
+	s.Session.ResetOnDisconnect = false
+	s.Session.onDisconnect()
 	s.NextSenderMsgSeqNum(2)
 	s.NextTargetMsgSeqNum(2)
 
-	s.session.ResetOnDisconnect = true
-	s.session.onDisconnect()
+	s.Session.ResetOnDisconnect = true
+	s.Session.onDisconnect()
 	s.ExpectStoreReset()
 }
 
@@ -811,7 +811,7 @@ func TestSessionSendTestSuite(t *testing.T) {
 
 func (suite *SessionSendTestSuite) SetupTest() {
 	suite.Init()
-	suite.session.State = inSession{}
+	suite.Session.State = inSession{}
 }
 
 func (suite *SessionSendTestSuite) TestQueueForSendAppMessage() {
@@ -916,7 +916,7 @@ func (suite *SessionSendTestSuite) TestSendNotLoggedOn() {
 
 	for _, test := range tests {
 		suite.MockApp.On("ToApp").Return(nil)
-		suite.session.State = test
+		suite.Session.State = test
 		require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
 		suite.MockApp.AssertExpectations(suite.T())
 		suite.NoMessageSent()
@@ -924,10 +924,10 @@ func (suite *SessionSendTestSuite) TestSendNotLoggedOn() {
 }
 
 func (suite *SessionSendTestSuite) TestSendEnableLastMsgSeqNumProcessed() {
-	suite.session.State = inSession{}
-	suite.session.EnableLastMsgSeqNumProcessed = true
+	suite.Session.State = inSession{}
+	suite.Session.EnableLastMsgSeqNumProcessed = true
 
-	suite.Require().Nil(suite.session.store.SetNextTargetMsgSeqNum(45))
+	suite.Require().Nil(suite.Session.store.SetNextTargetMsgSeqNum(45))
 
 	suite.MockApp.On("ToApp").Return(nil)
 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
@@ -938,8 +938,8 @@ func (suite *SessionSendTestSuite) TestSendEnableLastMsgSeqNumProcessed() {
 }
 
 func (suite *SessionSendTestSuite) TestSendDisableMessagePersist() {
-	suite.session.State = inSession{}
-	suite.session.DisableMessagePersist = true
+	suite.Session.State = inSession{}
+	suite.Session.DisableMessagePersist = true
 
 	suite.MockApp.On("ToApp").Return(nil)
 	require.Nil(suite.T(), suite.send(suite.NewOrderSingle()))
@@ -1007,8 +1007,8 @@ func (s *SessionSuite) TestSeqNumResetTime() {
 	s.SetupTest()
 
 	now := time.Now().UTC()
-	s.session.ResetSeqTime = now
-	s.session.EnableResetSeqTime = true
+	s.Session.ResetSeqTime = now
+	s.Session.EnableResetSeqTime = true
 
 	s.IncrNextSenderMsgSeqNum()
 	s.IncrNextTargetMsgSeqNum()
@@ -1020,7 +1020,7 @@ func (s *SessionSuite) TestSeqNumResetTime() {
 
 	s.MockApp.On("ToAdmin")
 
-	s.session.CheckResetTime(s.session, now)
+	s.Session.CheckResetTime(s.Session, now)
 
 	s.NextSenderMsgSeqNum(2)
 	s.NextSenderMsgSeqNum(2)

@@ -26,7 +26,7 @@ type resendState struct {
 
 func (s resendState) String() string { return "Resend" }
 
-func (s resendState) Timeout(session *session, event internal.Event) (nextState sessionState) {
+func (s resendState) Timeout(session *Session, event internal.Event) (nextState sessionState) {
 	nextState = inSession{}.Timeout(session, event)
 	switch nextState.(type) {
 	case inSession:
@@ -40,7 +40,7 @@ func (s resendState) Timeout(session *session, event internal.Event) (nextState 
 	return
 }
 
-func (s resendState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
+func (s resendState) FixMsgIn(session *Session, msg *Message) (nextState sessionState) {
 	nextState = inSession{}.FixMsgIn(session, msg)
 
 	if !nextState.IsLoggedOn() {

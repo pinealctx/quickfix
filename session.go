@@ -27,7 +27,7 @@ import (
 )
 
 // The Session is the primary FIX abstraction for message communication.
-type session struct {
+type Session struct {
 	store MessageStore
 
 	log       Log
@@ -65,13 +65,13 @@ type session struct {
 	timestampPrecision TimestampPrecision
 }
 
-func (s *session) logError(err error) {
+func (s *Session) logError(err error) {
 	s.log.OnEvent(err.Error())
 }
 
 // TargetDefaultApplicationVersionID returns the default application version ID for messages received by this version.
-// Applicable for For FIX.T.1 sessions.
-func (s *session) TargetDefaultApplicationVersionID() string {
+// Applicable for FIX.T.1 sessions.
+func (s *Session) TargetDefaultApplicationVersionID() string {
 	return s.targetDefaultApplVerID
 }
 
@@ -81,7 +81,7 @@ type connect struct {
 	err        chan<- error
 }
 
-func (s *session) connect(msgIn <-chan fixIn, msgOut chan<- []byte) error {
+func (s *Session) connect(msgIn <-chan fixIn, msgOut chan<- []byte) error {
 	rep := make(chan error)
 	s.admin <- connect{
 		messageOut: msgOut,
@@ -94,7 +94,7 @@ func (s *session) connect(msgIn <-chan fixIn, msgOut chan<- []byte) error {
 
 type stopReq struct{}
 
-func (s *session) stop() {
+func (s *Session) stop() {
 	// Stop once.
 	s.stopOnce.Do(func() {
 		s.admin <- stopReq{}
@@ -105,7 +105,7 @@ type waitChan <-chan interface{}
 
 type waitForInSessionReq struct{ rep chan<- waitChan }
 
-func (s *session) waitForInSessionTime() {
+func (s *Session) waitForInSessionTime() {
 	rep := make(chan waitChan)
 	s.admin <- waitForInSessionReq{rep}
 	if wait, ok := <-rep; ok {
@@ -113,7 +113,7 @@ func (s *session) waitForInSessionTime() {
 	}
 }
 
-func (s *session) insertSendingTime(msg *Message) {
+func (s *Session) insertSendingTime(msg *Message) {
 	sendingTime := time.Now().UTC()
 
 	if s.sessionID.BeginString >= BeginStringFIX42 {
@@ -129,7 +129,7 @@ func optionallySetID(msg *Message, field Tag, value string) {
 	}
 }
 
-func (s *session) fillDefaultHeader(msg *Message, inReplyTo *Message) {
+func (s *Session) fillDefaultHeader(msg *Message, inReplyTo *Message) {
 	msg.Header.SetString(tagBeginString, s.sessionID.BeginString)
 	msg.Header.SetString(tagSenderCompID, s.sessionID.SenderCompID)
 	optionallySetID(msg, tagSenderSubID, s.sessionID.SenderSubID)
@@ -154,7 +154,7 @@ func (s *session) fillDefaultHeader(msg *Message, inReplyTo *Message) {
 	}
 }
 
-func (s *session) shouldSendReset() bool {
+func (s *Session) shouldSendReset() bool {
 	if s.sessionID.BeginString < BeginStringFIX41 {
 		return false
 	}
@@ -163,11 +163,11 @@ func (s *session) shouldSendReset() bool {
 		s.store.NextTargetMsgSeqNum() == 1 && s.store.NextSenderMsgSeqNum() == 1
 }
 
-func (s *session) sendLogon() error {
+func (s *Session) sendLogon() error {
 	return s.sendLogonInReplyTo(s.shouldSendReset(), nil)
 }
 
-func (s *session) sendLogonInReplyTo(setResetSeqNum bool, inReplyTo *Message) error {
+func (s *Session) sendLogonInReplyTo(setResetSeqNum bool, inReplyTo *Message) error {
 	logon := NewMessage()
 	logon.Header.SetField(tagMsgType, FIXString("A"))
 	logon.Header.SetField(tagBeginString, FIXString(s.sessionID.BeginString))
@@ -212,7 +212,7 @@ func (s *session) sendLogonInReplyTo(setResetSeqNum bool, inReplyTo *Message) er
 	return nil
 }
 
-func (s *session) generateSequenceReset(beginSeqNo int, endSeqNo int, inReplyTo Message) (err error) {
+func (s *Session) generateSequenceReset(beginSeqNo int, endSeqNo int, inReplyTo Message) (err error) {
 	sequenceReset := NewMessage()
 	s.fillDefaultHeader(sequenceReset, &inReplyTo)
 
@@ -237,7 +237,7 @@ func (s *session) generateSequenceReset(beginSeqNo int, endSeqNo int, inReplyTo 
 	return
 }
 
-func (s *session) buildLogout(reason string) *Message {
+func (s *Session) buildLogout(reason string) *Message {
 	logout := NewMessage()
 	logout.Header.SetField(tagMsgType, FIXString("5"))
 	logout.Header.SetField(tagBeginString, FIXString(s.sessionID.BeginString))
@@ -250,16 +250,16 @@ func (s *session) buildLogout(reason string) *Message {
 	return logout
 }
 
-func (s *session) sendLogout(reason string) error {
+func (s *Session) sendLogout(reason string) error {
 	return s.sendLogoutInReplyTo(reason, nil)
 }
 
-func (s *session) sendLogoutInReplyTo(reason string, inReplyTo *Message) error {
+func (s *Session) sendLogoutInReplyTo(reason string, inReplyTo *Message) error {
 	logout := s.buildLogout(reason)
 	return s.sendInReplyTo(logout, inReplyTo)
 }
 
-func (s *session) resend(msg *Message) bool {
+func (s *Session) resend(msg *Message) bool {
 	msg.Header.SetField(tagPossDupFlag, FIXBoolean(true))
 
 	var origSendingTime FIXString
@@ -273,7 +273,7 @@ func (s *session) resend(msg *Message) bool {
 }
 
 // queueForSend will validate, persist, and queue the message for send.
-func (s *session) queueForSend(msg *Message) error {
+func (s *Session) queueForSend(msg *Message) error {
 	s.sendMutex.Lock()
 	defer s.sendMutex.Unlock()
 
@@ -289,18 +289,18 @@ func (s *session) queueForSend(msg *Message) error {
 	return nil
 }
 
-func (s *session) notifyMessageOut() {
+func (s *Session) notifyMessageOut() {
 	select {
 	case s.messageEvent <- true:
 	default:
 	}
 }
 
-// send will validate, persist, queue the message. If the session is logged on, send all messages in the queue.
-func (s *session) send(msg *Message) error {
+// send will validate, persist, queue the message. If the Session is logged on, send all messages in the queue.
+func (s *Session) send(msg *Message) error {
 	return s.sendInReplyTo(msg, nil)
 }
-func (s *session) sendInReplyTo(msg *Message, inReplyTo *Message) error {
+func (s *Session) sendInReplyTo(msg *Message, inReplyTo *Message) error {
 	if !s.IsLoggedOn() {
 		return s.queueForSend(msg)
 	}
@@ -324,7 +324,7 @@ func (s *session) sendInReplyTo(msg *Message, inReplyTo *Message) error {
 }
 
 // dropAndReset will drop the send queue and reset the message store.
-func (s *session) dropAndReset() error {
+func (s *Session) dropAndReset() error {
 	s.sendMutex.Lock()
 	defer s.sendMutex.Unlock()
 
@@ -333,10 +333,10 @@ func (s *session) dropAndReset() error {
 }
 
 // dropAndSend will validate and persist the message, then drops the send queue and sends the message.
-func (s *session) dropAndSend(msg *Message) error {
+func (s *Session) dropAndSend(msg *Message) error {
 	return s.dropAndSendInReplyTo(msg, nil)
 }
-func (s *session) dropAndSendInReplyTo(msg *Message, inReplyTo *Message) error {
+func (s *Session) dropAndSendInReplyTo(msg *Message, inReplyTo *Message) error {
 	s.sendMutex.Lock()
 	defer s.sendMutex.Unlock()
 
@@ -352,7 +352,7 @@ func (s *session) dropAndSendInReplyTo(msg *Message, inReplyTo *Message) error {
 	return nil
 }
 
-func (s *session) prepMessageForSend(msg *Message, inReplyTo *Message) (msgBytes []byte, err error) {
+func (s *Session) prepMessageForSend(msg *Message, inReplyTo *Message) (msgBytes []byte, err error) {
 	s.fillDefaultHeader(msg, inReplyTo)
 	seqNum := s.store.NextSenderMsgSeqNum()
 	msg.Header.SetField(tagMsgSeqNum, FIXInt(seqNum))
@@ -395,7 +395,7 @@ func (s *session) prepMessageForSend(msg *Message, inReplyTo *Message) (msgBytes
 	return
 }
 
-func (s *session) persist(seqNum int, msgBytes []byte) error {
+func (s *Session) persist(seqNum int, msgBytes []byte) error {
 	if !s.DisableMessagePersist {
 		return s.store.SaveMessageAndIncrNextSenderMsgSeqNum(seqNum, msgBytes)
 	}
@@ -403,7 +403,7 @@ func (s *session) persist(seqNum int, msgBytes []byte) error {
 	return s.store.IncrNextSenderMsgSeqNum()
 }
 
-func (s *session) sendQueued(blockUntilSent bool) {
+func (s *Session) sendQueued(blockUntilSent bool) {
 	for i, msgBytes := range s.toSend {
 		if !s.sendBytes(msgBytes, blockUntilSent) {
 			s.toSend = s.toSend[i:]
@@ -415,11 +415,11 @@ func (s *session) sendQueued(blockUntilSent bool) {
 	s.dropQueued()
 }
 
-func (s *session) dropQueued() {
+func (s *Session) dropQueued() {
 	s.toSend = s.toSend[:0]
 }
 
-func (s *session) EnqueueBytesAndSend(msg []byte) {
+func (s *Session) EnqueueBytesAndSend(msg []byte) {
 	s.sendMutex.Lock()
 	defer s.sendMutex.Unlock()
 
@@ -427,7 +427,7 @@ func (s *session) EnqueueBytesAndSend(msg []byte) {
 	s.sendQueued(true)
 }
 
-func (s *session) sendBytes(msg []byte, blockUntilSent bool) bool {
+func (s *Session) sendBytes(msg []byte, blockUntilSent bool) bool {
 	if s.messageOut == nil {
 		s.log.OnEventf("Failed to send: disconnected")
 		return false
@@ -450,12 +450,12 @@ func (s *session) sendBytes(msg []byte, blockUntilSent bool) bool {
 	}
 }
 
-func (s *session) doTargetTooHigh(reject targetTooHigh) (nextState resendState, err error) {
+func (s *Session) doTargetTooHigh(reject targetTooHigh) (nextState resendState, err error) {
 	s.log.OnEventf("MsgSeqNum too high, expecting %v but received %v", reject.ExpectedTarget, reject.ReceivedTarget)
 	return s.sendResendRequest(reject.ExpectedTarget, reject.ReceivedTarget-1)
 }
 
-func (s *session) sendResendRequest(beginSeq, endSeq int) (nextState resendState, err error) {
+func (s *Session) sendResendRequest(beginSeq, endSeq int) (nextState resendState, err error) {
 	nextState.resendRangeEnd = endSeq
 
 	resend := NewMessage()
@@ -488,7 +488,7 @@ func (s *session) sendResendRequest(beginSeq, endSeq int) (nextState resendState
 	return
 }
 
-func (s *session) handleLogon(msg *Message) error {
+func (s *Session) handleLogon(msg *Message) error {
 	// Grab default app ver id from fixt.1.1 logon.
 	if s.sessionID.BeginString == BeginStringFIXT11 {
 		var targetApplVerID FIXString
@@ -516,7 +516,7 @@ func (s *session) handleLogon(msg *Message) error {
 
 	nextSenderMsgNumAtLogonReceived := s.store.NextSenderMsgSeqNum()
 
-	// Make sure this is a valid session before resetting the store.
+	// Make sure this is a valid Session before resetting the store.
 	if err := s.verifyMsgAgainstAppImpl(msg); err != nil {
 		return err
 	}
@@ -537,8 +537,8 @@ func (s *session) handleLogon(msg *Message) error {
 		}
 	}
 
-	// Verify seq num too high but dont check against app implementation since we just did that.
-	// Don't need to double check.
+	// Verify seq num too high but don't check against app implementation since we just did that.
+	// Don't need to double-check.
 	if err := s.verifyIgnoreSeqNumTooHigh(msg); err != nil {
 		return err
 	}
@@ -585,11 +585,11 @@ func (s *session) handleLogon(msg *Message) error {
 	return s.store.IncrNextTargetMsgSeqNum()
 }
 
-func (s *session) initiateLogout(reason string) (err error) {
+func (s *Session) initiateLogout(reason string) (err error) {
 	return s.initiateLogoutInReplyTo(reason, nil)
 }
 
-func (s *session) initiateLogoutInReplyTo(reason string, inReplyTo *Message) (err error) {
+func (s *Session) initiateLogoutInReplyTo(reason string, inReplyTo *Message) (err error) {
 	if err = s.sendLogoutInReplyTo(reason, inReplyTo); err != nil {
 		s.logError(err)
 		return
@@ -599,19 +599,19 @@ func (s *session) initiateLogoutInReplyTo(reason string, inReplyTo *Message) (er
 	return
 }
 
-func (s *session) verify(msg *Message) MessageRejectError {
+func (s *Session) verify(msg *Message) MessageRejectError {
 	return s.verifySelect(msg, true, true, true)
 }
 
-func (s *session) verifyIgnoreSeqNumTooHigh(msg *Message) MessageRejectError {
+func (s *Session) verifyIgnoreSeqNumTooHigh(msg *Message) MessageRejectError {
 	return s.verifySelect(msg, false, true, false)
 }
 
-func (s *session) verifyIgnoreSeqNumTooHighOrLow(msg *Message) MessageRejectError {
+func (s *Session) verifyIgnoreSeqNumTooHighOrLow(msg *Message) MessageRejectError {
 	return s.verifySelect(msg, false, false, true)
 }
 
-func (s *session) verifySelect(msg *Message, checkTooHigh bool, checkTooLow bool, checkAppImpl bool) MessageRejectError {
+func (s *Session) verifySelect(msg *Message, checkTooHigh bool, checkTooLow bool, checkAppImpl bool) MessageRejectError {
 	if reject := s.checkBeginString(msg); reject != nil {
 		return reject
 	}
@@ -647,7 +647,7 @@ func (s *session) verifySelect(msg *Message, checkTooHigh bool, checkTooLow bool
 	return nil
 }
 
-func (s *session) verifyMsgAgainstAppImpl(msg *Message) MessageRejectError {
+func (s *Session) verifyMsgAgainstAppImpl(msg *Message) MessageRejectError {
 	if s.Validator != nil {
 		if reject := s.Validator.Validate(msg); reject != nil {
 			return reject
@@ -657,7 +657,7 @@ func (s *session) verifyMsgAgainstAppImpl(msg *Message) MessageRejectError {
 	return s.fromCallback(msg)
 }
 
-func (s *session) fromCallback(msg *Message) MessageRejectError {
+func (s *Session) fromCallback(msg *Message) MessageRejectError {
 	msgType, err := msg.Header.GetBytes(tagMsgType)
 	if err != nil {
 		return err
@@ -670,7 +670,7 @@ func (s *session) fromCallback(msg *Message) MessageRejectError {
 	return s.application.FromApp(msg, s.sessionID)
 }
 
-func (s *session) checkTargetTooLow(msg *Message) MessageRejectError {
+func (s *Session) checkTargetTooLow(msg *Message) MessageRejectError {
 	if !msg.Header.Has(tagMsgSeqNum) {
 		return RequiredTagMissing(tagMsgSeqNum)
 	}
@@ -687,7 +687,7 @@ func (s *session) checkTargetTooLow(msg *Message) MessageRejectError {
 	return nil
 }
 
-func (s *session) checkTargetTooHigh(msg *Message) MessageRejectError {
+func (s *Session) checkTargetTooHigh(msg *Message) MessageRejectError {
 	if !msg.Header.Has(tagMsgSeqNum) {
 		return RequiredTagMissing(tagMsgSeqNum)
 	}
@@ -704,7 +704,7 @@ func (s *session) checkTargetTooHigh(msg *Message) MessageRejectError {
 	return nil
 }
 
-func (s *session) checkCompID(msg *Message) MessageRejectError {
+func (s *Session) checkCompID(msg *Message) MessageRejectError {
 	senderCompID, haveSender := msg.Header.GetBytes(tagSenderCompID)
 	targetCompID, haveTarget := msg.Header.GetBytes(tagTargetCompID)
 
@@ -724,7 +724,7 @@ func (s *session) checkCompID(msg *Message) MessageRejectError {
 	return nil
 }
 
-func (s *session) checkSendingTime(msg *Message) MessageRejectError {
+func (s *Session) checkSendingTime(msg *Message) MessageRejectError {
 	if s.SkipCheckLatency {
 		return nil
 	}
@@ -745,7 +745,7 @@ func (s *session) checkSendingTime(msg *Message) MessageRejectError {
 	return nil
 }
 
-func (s *session) checkBeginString(msg *Message) MessageRejectError {
+func (s *Session) checkBeginString(msg *Message) MessageRejectError {
 	switch beginString, err := msg.Header.GetBytes(tagBeginString); {
 	case err != nil:
 		return RequiredTagMissing(tagBeginString)
@@ -756,7 +756,7 @@ func (s *session) checkBeginString(msg *Message) MessageRejectError {
 	return nil
 }
 
-func (s *session) doReject(msg *Message, rej MessageRejectError) error {
+func (s *Session) doReject(msg *Message, rej MessageRejectError) error {
 	reply := msg.reverseRoute()
 
 	if s.sessionID.BeginString >= BeginStringFIX42 {
@@ -810,7 +810,7 @@ type fixIn struct {
 	receiveTime time.Time
 }
 
-func (s *session) onDisconnect() {
+func (s *Session) onDisconnect() {
 	s.log.OnEvent("Disconnected")
 	if s.ResetOnDisconnect {
 		if err := s.dropAndReset(); err != nil {
@@ -826,7 +826,7 @@ func (s *session) onDisconnect() {
 	s.messageIn = nil
 }
 
-func (s *session) onAdmin(msg interface{}) {
+func (s *Session) onAdmin(msg interface{}) {
 	switch msg := msg.(type) {
 
 	case connect:
@@ -842,7 +842,7 @@ func (s *session) onAdmin(msg interface{}) {
 		if !s.IsSessionTime() {
 			s.handleDisconnectState(s)
 			if msg.err != nil {
-				msg.err <- errors.New("Connection outside of session time")
+				msg.err <- errors.New("Connection outside of Session time")
 				close(msg.err)
 			}
 			return
@@ -869,19 +869,19 @@ func (s *session) onAdmin(msg interface{}) {
 	}
 }
 
-func (s *session) run() {
+func (s *Session) run() {
 	s.Start(s)
 	var stopChan = make(chan struct{})
 	s.stateTimer = internal.NewEventTimer(func() {
 		select {
-		// Deadlock in write to chan s.sessionEvent after s.Stopped()==true and end of loop session.go:766 because no reader of chan s.sessionEvent.
+		// Deadlock in write to chan s.sessionEvent after s.Stopped()==true and end of loop Session.go:766 because no reader of chan s.sessionEvent.
 		case s.sessionEvent <- internal.NeedHeartbeat:
 		case <-stopChan:
 		}
 	})
 	s.peerTimer = internal.NewEventTimer(func() {
 		select {
-		// Deadlock in write to chan s.sessionEvent after s.Stopped()==true and end of loop session.go:766 because no reader of chan s.sessionEvent.
+		// Deadlock in write to chan s.sessionEvent after s.Stopped()==true and end of loop Session.go:766 because no reader of chan s.sessionEvent.
 		case s.sessionEvent <- internal.PeerTimeout:
 		case <-stopChan:
 		}
@@ -889,8 +889,8 @@ func (s *session) run() {
 	})
 
 	// Without this sleep the ticker will be aligned at the millisecond which
-	// corresponds to the creation of the session. If the session creation
-	// happened at 07:00:00.678 and the session StartTime is 07:30:00, any new
+	// corresponds to the creation of the Session. If the Session creation
+	// happened at 07:00:00.678 and the Session StartTime is 07:30:00, any new
 	// connection received between 07:30:00.000 and 07:30:00.677 will be
 	// rejected. Aligning the ticker with a round second fixes that.
 	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
@@ -928,4 +928,14 @@ func (s *session) run() {
 			s.CheckResetTime(s, now)
 		}
 	}
+}
+
+// ParseMessage parses a FIX message from a raw byte buffer using the session's data dictionaries.
+func (s *Session) ParseMessage(msg *Message, rawMessage *bytes.Buffer) (err error) {
+	return ParseMessageWithDataDictionary(msg, rawMessage, s.transportDataDictionary, s.appDataDictionary)
+}
+
+// SendToTarget sends a message to the target specified in the session's SessionID.
+func (s *Session) SendToTarget(m Messagable) error {
+	return s.queueForSend(m.ToMessage())
 }

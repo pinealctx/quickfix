@@ -30,11 +30,11 @@ type Log interface {
 	OnEventf(string, ...interface{})
 }
 
-// The LogFactory interface creates global and session specific Log instances.
+// The LogFactory interface creates global and Session specific Log instances.
 type LogFactory interface {
 	// Create global log.
 	Create() (Log, error)
 
-	// CreateSessionLog session specific log.
+	// CreateSessionLog Session specific log.
 	CreateSessionLog(sessionID SessionID) (Log, error)
 }

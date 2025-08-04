@@ -21,7 +21,7 @@ type pendingTimeout struct {
 	sessionState
 }
 
-func (s pendingTimeout) Timeout(session *session, event internal.Event) (nextState sessionState) {
+func (s pendingTimeout) Timeout(session *Session, event internal.Event) (nextState sessionState) {
 	switch event {
 	case internal.PeerTimeout:
 		session.log.OnEvent("Session Timeout")

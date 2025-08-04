@@ -19,18 +19,18 @@ import "github.com/quickfixgo/quickfix/internal"
 
 type notSessionTime struct{ latentState }
 
-func (notSessionTime) String() string      { return "Not session time" }
+func (notSessionTime) String() string      { return "Not Session time" }
 func (notSessionTime) IsSessionTime() bool { return false }
 
-func (state notSessionTime) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
+func (state notSessionTime) FixMsgIn(session *Session, msg *Message) (nextState sessionState) {
 	session.log.OnEventf("Invalid Session State: Unexpected Msg %v while in Latent state", msg)
 	return state
 }
 
-func (state notSessionTime) Timeout(*session, internal.Event) (nextState sessionState) {
+func (state notSessionTime) Timeout(*Session, internal.Event) (nextState sessionState) {
 	return state
 }
 
-func (state notSessionTime) Stop(*session) (nextState sessionState) {
+func (state notSessionTime) Stop(*Session) (nextState sessionState) {
 	return state
 }

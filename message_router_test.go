@@ -66,7 +66,7 @@ func (suite *MessageRouterTestSuite) givenTheMessage(msgBytes []byte) {
 }
 
 func (suite *MessageRouterTestSuite) givenTargetDefaultApplVerIDForSession(defaultApplVerID string, sessionID SessionID) {
-	s := &session{
+	s := &Session{
 		sessionID:              sessionID,
 		targetDefaultApplVerID: defaultApplVerID,
 	}
@@ -110,7 +110,7 @@ func (suite *MessageRouterTestSuite) SetupTest() {
 	sessionsLock.Lock()
 	defer sessionsLock.Unlock()
 
-	sessions = make(map[SessionID]*session)
+	sessions = make(map[SessionID]*Session)
 	suite.msg = NewMessage()
 }
 

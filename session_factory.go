@@ -65,11 +65,11 @@ type sessionFactory struct {
 
 const shortForm = "15:04:05"
 
-// Creates Session, associates with internal session registry.
+// Creates Session, associates with internal Session registry.
 func (f sessionFactory) createSession(
 	sessionID SessionID, storeFactory MessageStoreFactory, settings *SessionSettings,
 	logFactory LogFactory, application Application,
-) (session *session, err error) {
+) (session *Session, err error) {
 
 	if session, err = f.newSession(sessionID, storeFactory, settings, logFactory, application); err != nil {
 		return
@@ -79,15 +79,15 @@ func (f sessionFactory) createSession(
 		return
 	}
 	application.OnCreate(session.sessionID)
-	session.log.OnEvent("Created session")
+	session.log.OnEvent("Created Session")
 
 	return
 }
 
 func (f sessionFactory) newSession(
 	sessionID SessionID, storeFactory MessageStoreFactory, settings *SessionSettings, logFactory LogFactory,
-	application Application) (s *session, err error) {
-	s = &session{
+	application Application) (s *Session, err error) {
+	s = &Session{
 		sessionID: sessionID,
 		stopOnce:  sync.Once{},
 	}
@@ -446,14 +446,14 @@ func (f sessionFactory) newSession(
 	return
 }
 
-func (f sessionFactory) buildAcceptorSettings(session *session, settings *SessionSettings) error {
+func (f sessionFactory) buildAcceptorSettings(session *Session, settings *SessionSettings) error {
 	if err := f.buildHeartBtIntSettings(session, settings, false); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (f sessionFactory) buildInitiatorSettings(session *session, settings *SessionSettings) error {
+func (f sessionFactory) buildInitiatorSettings(session *Session, settings *SessionSettings) error {
 	session.InitiateLogon = true
 
 	if err := f.buildHeartBtIntSettings(session, settings, true); err != nil {
@@ -520,7 +520,7 @@ func (f sessionFactory) buildInitiatorSettings(session *session, settings *Sessi
 	return f.configureSocketConnectAddress(session, settings)
 }
 
-func (f sessionFactory) configureSocketConnectAddress(session *session, settings *SessionSettings) (err error) {
+func (f sessionFactory) configureSocketConnectAddress(session *Session, settings *SessionSettings) (err error) {
 	session.SocketConnectAddress = []string{}
 
 	var socketConnectHost, socketConnectPort string
@@ -551,7 +551,7 @@ func (f sessionFactory) configureSocketConnectAddress(session *session, settings
 	}
 }
 
-func (f sessionFactory) buildHeartBtIntSettings(session *session, settings *SessionSettings, mustProvide bool) (err error) {
+func (f sessionFactory) buildHeartBtIntSettings(session *Session, settings *SessionSettings, mustProvide bool) (err error) {
 	if settings.HasSetting(config.HeartBtIntOverride) {
 		if session.HeartBtIntOverride, err = settings.BoolSetting(config.HeartBtIntOverride); err != nil {
 			return

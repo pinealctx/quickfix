@@ -156,7 +156,7 @@ func (s *SettingsAddSessionSuite) TestRejectDuplicate() {
 	s3.Set(config.SenderCompID, "CB")
 	s3.Set(config.TargetCompID, "SS")
 	_, err = s.settings.AddSession(s3)
-	s.NotNil(err, "Expected error for adding duplicate session")
+	s.NotNil(err, "Expected error for adding duplicate Session")
 
 	sessionSettings := s.settings.SessionSettings()
 	s.Len(sessionSettings, 2)
@@ -171,7 +171,7 @@ ReconnectInterval=60
 SenderCompID=TW
 
 
-# session definition
+# Session definition
 [SESSION]
 # inherit ConnectionType, ReconnectInterval and SenderCompID from default
 

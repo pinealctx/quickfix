@@ -18,13 +18,13 @@ package quickfix
 // Application interface should be implemented by FIX Applications.
 // This is the primary interface for processing messages from a FIX Session.
 type Application interface {
-	// OnCreate notification of a session begin created.
+	// OnCreate notification of a Session begin created.
 	OnCreate(sessionID SessionID)
 
-	// OnLogon notification of a session successfully logging on.
+	// OnLogon notification of a Session successfully logging on.
 	OnLogon(sessionID SessionID)
 
-	// OnLogout notification of a session logging off or disconnecting.
+	// OnLogout notification of a Session logging off or disconnecting.
 	OnLogout(sessionID SessionID)
 
 	// ToAdmin notification of admin message being sent to target.

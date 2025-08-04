@@ -31,21 +31,21 @@ func TestLatentStateTestSuite(t *testing.T) {
 
 func (s *LatentStateTestSuite) SetupTest() {
 	s.Init()
-	s.session.State = latentState{}
+	s.Session.State = latentState{}
 }
 
 func (s *LatentStateTestSuite) TestPreliminary() {
-	s.False(s.session.IsLoggedOn())
-	s.False(s.session.IsConnected())
-	s.True(s.session.IsSessionTime())
+	s.False(s.Session.IsLoggedOn())
+	s.False(s.Session.IsConnected())
+	s.True(s.Session.IsSessionTime())
 }
 
 func (s *LatentStateTestSuite) TestDisconnected() {
-	s.session.Disconnected(s.session)
+	s.Session.Disconnected(s.Session)
 	s.State(latentState{})
 }
 
 func (s *LatentStateTestSuite) TestStop() {
-	s.session.Stop(s.session)
+	s.Session.Stop(s.Session)
 	s.Stopped()
 }

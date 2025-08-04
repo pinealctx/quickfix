@@ -99,7 +99,7 @@ const (
 	// Default: N/A
 	//
 	// Valid Values:
-	//  - A case-sensitive alpha-numeric string.
+	//  - A case-sensitive alphanumeric string.
 	SenderCompID string = "SenderCompID"
 
 	// SenderSubID is your subID as associated with this FIX session.

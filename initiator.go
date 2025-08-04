@@ -36,7 +36,7 @@ type Initiator struct {
 	globalLog       Log
 	stopChan        chan interface{}
 	wg              sync.WaitGroup
-	sessions        map[SessionID]*session
+	sessions        map[SessionID]*Session
 	sessionFactory
 }
 
@@ -45,7 +45,7 @@ func (i *Initiator) Start() (err error) {
 	i.stopChan = make(chan interface{})
 
 	for sessionID, settings := range i.sessionSettings {
-		// TODO: move into session factory.
+		// TODO: move into Session factory.
 		var tlsConfig *tls.Config
 		if tlsConfig, err = loadTLSConfig(settings); err != nil {
 			return
@@ -93,7 +93,7 @@ func NewInitiator(app Application, storeFactory MessageStoreFactory, appSettings
 		settings:        appSettings,
 		sessionSettings: appSettings.SessionSettings(),
 		logFactory:      logFactory,
-		sessions:        make(map[SessionID]*session),
+		sessions:        make(map[SessionID]*Session),
 		sessionFactory:  sessionFactory{true},
 	}
 
@@ -115,8 +115,8 @@ func NewInitiator(app Application, storeFactory MessageStoreFactory, appSettings
 	return i, nil
 }
 
-// waitForInSessionTime returns true if the session is in session, false if the handler should stop.
-func (i *Initiator) waitForInSessionTime(session *session) bool {
+// waitForInSessionTime returns true if the Session is in Session, false if the handler should stop.
+func (i *Initiator) waitForInSessionTime(session *Session) bool {
 	inSessionTime := make(chan interface{})
 	go func() {
 		session.waitForInSessionTime()
@@ -143,7 +143,7 @@ func (i *Initiator) waitForReconnectInterval(reconnectInterval time.Duration) bo
 	return true
 }
 
-func (i *Initiator) handleConnection(session *session, tlsConfig *tls.Config, dialer proxy.ContextDialer) {
+func (i *Initiator) handleConnection(session *Session, tlsConfig *tls.Config, dialer proxy.ContextDialer) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

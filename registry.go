@@ -21,16 +21,16 @@ import (
 )
 
 var sessionsLock sync.RWMutex
-var sessions = make(map[SessionID]*session)
+var sessions = make(map[SessionID]*Session)
 var errDuplicateSessionID = errors.New("Duplicate SessionID")
-var errUnknownSession = errors.New("Unknown session")
+var errUnknownSession = errors.New("Unknown Session")
 
 // Messagable is a Message or something that can be converted to a Message.
 type Messagable interface {
 	ToMessage() *Message
 }
 
-// Send determines the session to send Messagable using header fields BeginString, TargetCompID, SenderCompID.
+// Send determines the Session to send Messagable using header fields BeginString, TargetCompID, SenderCompID.
 func Send(m Messagable) (err error) {
 	msg := m.ToMessage()
 	var beginString FIXString
@@ -53,7 +53,7 @@ func Send(m Messagable) (err error) {
 	return SendToTarget(msg, sessionID)
 }
 
-// SendToTarget sends a message based on the sessionID. Convenient for use in FromApp since it provides a session ID for incoming messages.
+// SendToTarget sends a message based on the sessionID. Convenient for use in FromApp since it provides a Session ID for incoming messages.
 func SendToTarget(m Messagable, sessionID SessionID) error {
 	msg := m.ToMessage()
 	session, ok := lookupSession(sessionID)
@@ -64,7 +64,7 @@ func SendToTarget(m Messagable, sessionID SessionID) error {
 	return session.queueForSend(msg)
 }
 
-// ResetSession resets session's sequence numbers.
+// ResetSession resets Session's sequence numbers.
 func ResetSession(sessionID SessionID) error {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -80,7 +80,16 @@ func ResetSession(sessionID SessionID) error {
 	return nil
 }
 
-// UnregisterSession removes a session from the set of known sessions.
+// GetSession retrieves a Session by its SessionID.
+func GetSession(sessionID SessionID) (*Session, error) {
+	session, ok := lookupSession(sessionID)
+	if !ok {
+		return nil, errUnknownSession
+	}
+	return session, nil
+}
+
+// UnregisterSession removes a Session from the set of known sessions.
 func UnregisterSession(sessionID SessionID) error {
 	sessionsLock.Lock()
 	defer sessionsLock.Unlock()
@@ -93,7 +102,7 @@ func UnregisterSession(sessionID SessionID) error {
 	return errUnknownSession
 }
 
-// SetNextTargetMsgSeqNum set the next expected target message sequence number for the session matching the session id.
+// SetNextTargetMsgSeqNum set the next expected target message sequence number for the Session matching the Session id.
 func SetNextTargetMsgSeqNum(sessionID SessionID, seqNum int) error {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -102,7 +111,7 @@ func SetNextTargetMsgSeqNum(sessionID SessionID, seqNum int) error {
 	return session.store.SetNextTargetMsgSeqNum(seqNum)
 }
 
-// SetNextSenderMsgSeqNum sets the next outgoing message sequence number for the session matching the session id.
+// SetNextSenderMsgSeqNum sets the next outgoing message sequence number for the Session matching the Session id.
 func SetNextSenderMsgSeqNum(sessionID SessionID, seqNum int) error {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -111,7 +120,7 @@ func SetNextSenderMsgSeqNum(sessionID SessionID, seqNum int) error {
 	return session.store.SetNextSenderMsgSeqNum(seqNum)
 }
 
-// GetExpectedSenderNum retrieves the expected sender sequence number for the session matching the session id.
+// GetExpectedSenderNum retrieves the expected sender sequence number for the Session matching the Session id.
 func GetExpectedSenderNum(sessionID SessionID) (int, error) {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -120,7 +129,7 @@ func GetExpectedSenderNum(sessionID SessionID) (int, error) {
 	return session.store.NextSenderMsgSeqNum(), nil
 }
 
-// GetExpectedTargetNum retrieves the next target sequence number for the session matching the session id.
+// GetExpectedTargetNum retrieves the next target sequence number for the Session matching the Session id.
 func GetExpectedTargetNum(sessionID SessionID) (int, error) {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -129,7 +138,7 @@ func GetExpectedTargetNum(sessionID SessionID) (int, error) {
 	return session.store.NextTargetMsgSeqNum(), nil
 }
 
-// GetMessageStore returns the MessageStore interface for session matching the session id.
+// GetMessageStore returns the MessageStore interface for Session matching the Session id.
 func GetMessageStore(sessionID SessionID) (MessageStore, error) {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -138,7 +147,7 @@ func GetMessageStore(sessionID SessionID) (MessageStore, error) {
 	return session.store, nil
 }
 
-// GetLog returns the Log interface for session matching the session id.
+// GetLog returns the Log interface for Session matching the Session id.
 func GetLog(sessionID SessionID) (Log, error) {
 	session, ok := lookupSession(sessionID)
 	if !ok {
@@ -147,7 +156,7 @@ func GetLog(sessionID SessionID) (Log, error) {
 	return session.log, nil
 }
 
-func registerSession(s *session) error {
+func registerSession(s *Session) error {
 	sessionsLock.Lock()
 	defer sessionsLock.Unlock()
 
@@ -159,7 +168,7 @@ func registerSession(s *session) error {
 	return nil
 }
 
-func lookupSession(sessionID SessionID) (s *session, ok bool) {
+func lookupSession(sessionID SessionID) (s *Session, ok bool) {
 	sessionsLock.RLock()
 	defer sessionsLock.RUnlock()
 

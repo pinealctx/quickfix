@@ -25,7 +25,7 @@ type logonState struct{ connectedNotLoggedOn }
 
 func (s logonState) String() string { return "Logon State" }
 
-func (s logonState) FixMsgIn(session *session, msg *Message) (nextState sessionState) {
+func (s logonState) FixMsgIn(session *Session, msg *Message) (nextState sessionState) {
 	msgType, err := msg.Header.GetBytes(tagMsgType)
 	if err != nil {
 		return handleStateError(session, err)
@@ -59,7 +59,7 @@ func (s logonState) FixMsgIn(session *session, msg *Message) (nextState sessionS
 	return inSession{}
 }
 
-func (s logonState) Timeout(session *session, e internal.Event) (nextState sessionState) {
+func (s logonState) Timeout(session *Session, e internal.Event) (nextState sessionState) {
 	switch e {
 	case internal.LogonTimeout:
 		session.log.OnEvent("Timed out waiting for logon response")
@@ -68,11 +68,11 @@ func (s logonState) Timeout(session *session, e internal.Event) (nextState sessi
 	return s
 }
 
-func (s logonState) Stop(_ *session) (nextState sessionState) {
+func (s logonState) Stop(_ *Session) (nextState sessionState) {
 	return latentState{}
 }
 
-func shutdownWithReason(session *session, msg *Message, incrNextTargetMsgSeqNum bool, reason string) (nextState sessionState) {
+func shutdownWithReason(session *Session, msg *Message, incrNextTargetMsgSeqNum bool, reason string) (nextState sessionState) {
 	session.log.OnEvent(reason)
 	logout := session.buildLogout(reason)
 

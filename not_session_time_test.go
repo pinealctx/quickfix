@@ -31,21 +31,21 @@ func TestNotSessionTime(t *testing.T) {
 
 func (s *NotSessionTimeTestSuite) SetupTest() {
 	s.Init()
-	s.session.State = notSessionTime{}
+	s.Session.State = notSessionTime{}
 }
 
 func (s *NotSessionTimeTestSuite) TestPreliminary() {
-	s.False(s.session.IsLoggedOn())
-	s.False(s.session.IsConnected())
-	s.False(s.session.IsSessionTime())
+	s.False(s.Session.IsLoggedOn())
+	s.False(s.Session.IsConnected())
+	s.False(s.Session.IsSessionTime())
 }
 
 func (s *NotSessionTimeTestSuite) TestDisconnected() {
-	s.session.Disconnected(s.session)
+	s.Session.Disconnected(s.Session)
 	s.State(notSessionTime{})
 }
 
 func (s *NotSessionTimeTestSuite) TestStop() {
-	s.session.Stop(s.session)
+	s.Session.Stop(s.Session)
 	s.Stopped()
 }
