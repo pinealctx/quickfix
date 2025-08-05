@@ -20,16 +20,45 @@ var (
 	waitGroup sync.WaitGroup
 	errors    = make(chan error)
 
-	// Command line flags
-	goPackagePrefix = flag.String("go_package", "github.com/quickfixgo/quickfix/proto", "Go package prefix for generated protobuf files")
-	directory       = flag.String("directory", ".", "Directory to write generated proto files to")
-	goDirectory     = flag.String("go_directory", "", "Directory to write generated Go files to (default: same as -directory)")
+	// Command line flags - all required
+	pbGoPkg = flag.String("pb_go_pkg", "", "Go package for generated protobuf files (required)")
+	pbRoot  = flag.String("pb_root", "", "Directory for generated proto files (required)")
+	goRoot  = flag.String("go_root", "", "Directory for generated Go files (required)")
+	fixPkg  = flag.String("fix_pkg", "", "Root import path for QuickFIX packages (required)")
 )
 
 func usage() {
 	_, _ = fmt.Fprintf(os.Stderr, "usage: %v [flags] <path to data dictionary> ... \n", os.Args[0])
-	flag.PrintDefaults()
+	_, _ = fmt.Fprintf(os.Stderr, "\nRequired flags:\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  -pb_go_pkg string\n        Go package for generated protobuf files\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  -pb_root string\n        Directory for generated proto files\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  -go_root string\n        Directory for generated Go files\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  -fix_pkg string\n        Root import path for QuickFIX packages\n")
+	_, _ = fmt.Fprintf(os.Stderr, "\nExample:\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  %v -pb_go_pkg github.com/mycompany/proto -pb_root ./proto -go_root ./internal/proto -fix_pkg github.com/mycompany/quickfix spec/FIX44.xml\n", os.Args[0])
 	os.Exit(2)
+}
+
+func validateFlags() {
+	var missing []string
+
+	if *pbGoPkg == "" {
+		missing = append(missing, "-pb_go_pkg")
+	}
+	if *pbRoot == "" {
+		missing = append(missing, "-pb_root")
+	}
+	if *goRoot == "" {
+		missing = append(missing, "-go_root")
+	}
+	if *fixPkg == "" {
+		missing = append(missing, "-fix_pkg")
+	}
+
+	if len(missing) > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "Error: Missing required flags: %s\n\n", strings.Join(missing, ", "))
+		usage()
+	}
 }
 
 func getPackageName(fixSpec *datadictionary.DataDictionary) string {
@@ -59,6 +88,7 @@ type enumComponent struct {
 type messagesComponent struct {
 	Package         string
 	GoPackagePrefix string
+	QuickfixRoot    string
 	Messages        []messageInfo
 }
 
@@ -70,25 +100,69 @@ type messageInfo struct {
 
 func genProtoEnums() {
 	c := enumComponent{
-		GoPackagePrefix: *goPackagePrefix,
+		GoPackagePrefix: *pbGoPkg,
 		FieldTypes:      internal.GlobalFieldTypes,
 	}
-	gen(internal.EnumProtoTemplate, path.Join(*directory, "enums.proto"), c)
+	gen(internal.EnumProtoTemplate, path.Join(*pbRoot, "enums.proto"), c)
 }
 
 func genEnumExtensions() {
 	c := enumComponent{
-		GoPackagePrefix: *goPackagePrefix,
+		GoPackagePrefix: *pbGoPkg,
 		FieldTypes:      internal.GlobalFieldTypes,
 	}
 
 	// 确定Go文件的输出目录
-	outputDir := *goDirectory
+	outputDir := *goRoot
 	if outputDir == "" {
-		outputDir = *directory
+		outputDir = *pbRoot
 	}
 
 	gen(internal.EnumExtensionTemplate, path.Join(outputDir, "enum_extensions.go"), c)
+}
+
+func genConversions(specs []*datadictionary.DataDictionary) {
+	var allMessages []messageInfo
+
+	for _, spec := range specs {
+		pkg := getPackageName(spec)
+
+		// 处理普通的messages
+		for _, msg := range spec.Messages {
+			allMessages = append(allMessages, messageInfo{
+				Name:       msg.Name,
+				Package:    pkg,
+				MessageDef: msg,
+			})
+		}
+
+		// 处理components，将它们也作为messages
+		for _, comp := range spec.ComponentTypes {
+			// 为component创建一个正确的MessageDef包装器
+			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
+
+			allMessages = append(allMessages, messageInfo{
+				Name:       comp.Name(),
+				Package:    pkg,
+				MessageDef: componentMsg,
+			})
+		}
+	}
+
+	c := messagesComponent{
+		Package:         "fixmessages",
+		GoPackagePrefix: *pbGoPkg,
+		QuickfixRoot:    *fixPkg,
+		Messages:        allMessages,
+	}
+
+	// 确定Go文件的输出目录
+	outputDir := *goRoot
+	if outputDir == "" {
+		outputDir = *pbRoot
+	}
+
+	gen(internal.ConversionTemplate, path.Join(outputDir, "conversions.go"), c)
 }
 
 func genAllMessages(specs []*datadictionary.DataDictionary) {
@@ -121,11 +195,12 @@ func genAllMessages(specs []*datadictionary.DataDictionary) {
 
 	c := messagesComponent{
 		Package:         "fixmessages", // 统一的包名
-		GoPackagePrefix: *goPackagePrefix,
+		GoPackagePrefix: *pbGoPkg,
+		QuickfixRoot:    *fixPkg,
 		Messages:        allMessages,
 	}
 
-	gen(internal.AllMessagesProtoTemplate, path.Join(*directory, "messages.proto"), c)
+	gen(internal.AllMessagesProtoTemplate, path.Join(*pbRoot, "messages.proto"), c)
 }
 
 func gen(t *template.Template, fileOut string, data interface{}) {
@@ -150,21 +225,23 @@ func main() {
 		usage()
 	}
 
+	validateFlags()
+
 	// Create proto output directory if it doesn't exist
-	if fi, err := os.Stat(*directory); os.IsNotExist(err) {
-		if err := os.MkdirAll(*directory, os.ModePerm); err != nil {
+	if fi, err := os.Stat(*pbRoot); os.IsNotExist(err) {
+		if err := os.MkdirAll(*pbRoot, os.ModePerm); err != nil {
 			log.Fatal(err)
 		}
 	} else if !fi.IsDir() {
-		log.Fatalf("%v is not a directory", *directory)
+		log.Fatalf("%v is not a directory", *pbRoot)
 	}
 
 	// Create Go output directory if it's different from proto directory
-	goOutputDir := *goDirectory
+	goOutputDir := *goRoot
 	if goOutputDir == "" {
-		goOutputDir = *directory
+		goOutputDir = *pbRoot
 	}
-	if goOutputDir != *directory {
+	if goOutputDir != *pbRoot {
 		if fi, err := os.Stat(goOutputDir); os.IsNotExist(err) {
 			if err := os.MkdirAll(goOutputDir, os.ModePerm); err != nil {
 				log.Fatal(err)
@@ -208,6 +285,10 @@ func main() {
 	// Generate a single file for all messages
 	waitGroup.Add(1)
 	go genAllMessages(specs)
+
+	// Always generate conversion functions
+	waitGroup.Add(1)
+	go genConversions(specs)
 
 	go func() {
 		waitGroup.Wait()

@@ -1,6 +1,6 @@
 # Generate-PB Tool
 
-This tool converts FIX message definitions to Protocol Buffer (protobuf) definitions.
+This tool converts FIX message definitions to Protocol Buffer (protobuf) definitions and generates bidirectional conversion functions.
 
 ## Purpose
 
@@ -8,37 +8,45 @@ The `generate-pb` tool is designed to:
 1. Convert FIX message definitions from data dictionaries to protobuf format
 2. Generate enum definitions for FIX fields that support string values
 3. Create Go extension functions to convert between protobuf enum values (numbers) and FIX string values
-4. **Generate all message definitions in a single protobuf file for easier management**
+4. **Generate bidirectional conversion functions between protobuf and QuickFIX structs**
+5. **Generate all message definitions in a single protobuf file for easier management**
 
 ## Usage
 
 ```bash
-generate-pb [flags] <path to data dictionary> [additional dictionaries...]
+generate-pb [required-flags] <path to data dictionary> [additional dictionaries...]
 ```
 
-### Flags
+### Required Flags (All Must Be Specified)
 
-- `-go_package <prefix>`: Specify the Go package prefix for generated protobuf files (default: "github.com/quickfixgo/quickfix/proto")
-- `-directory <path>`: Directory to write generated proto files to (default: ".")
-- `-go_directory <path>`: Directory to write generated Go files to (default: same as -directory)
+- `-pb_go_pkg <package>`: Go package for generated protobuf files (used in go_package option)
+- `-pb_root <path>`: Directory for generated proto files
+- `-go_root <path>`: Directory for generated Go files
+- `-fix_pkg <package>`: Root import path for QuickFIX packages
 
 ### Examples
 
 ```bash
-# Generate to current directory (proto and Go files together)
-generate-pb spec/FIX44.xml
-
-# Generate proto files to ./proto, Go files to same directory
-generate-pb -directory ./proto spec/FIX44.xml
-
-# Separate proto and Go files to different directories
-generate-pb -directory ./proto -go_directory ./go spec/FIX44.xml
-
-# Custom go_package with separate directories
-generate-pb -go_package "github.com/mycompany/trading/proto" \
-            -directory ./proto \
-            -go_directory ./internal/enums \
+# Basic usage with all required flags
+generate-pb -pb_go_pkg github.com/mycompany/proto \
+            -pb_root ./proto \
+            -go_root ./internal/proto \
+            -fix_pkg github.com/mycompany/quickfix \
             spec/FIX44.xml
+
+# Using original quickfix package
+generate-pb -pb_go_pkg github.com/quickfixgo/quickfix/proto \
+            -pb_root ./output/proto \
+            -go_root ./output/go \
+            -fix_pkg github.com/quickfixgo/quickfix \
+            spec/FIX44.xml
+
+# Multiple dictionary files
+generate-pb -pb_go_pkg github.com/trading/proto \
+            -pb_root ./proto \
+            -go_root ./internal/proto \
+            -fix_pkg github.com/trading/quickfix \
+            spec/FIX44.xml spec/FIXT11.xml
 ```
 
 ## Features
@@ -53,10 +61,29 @@ generate-pb -go_package "github.com/mycompany/trading/proto" \
 - Maps FIX field types to appropriate protobuf types
 - Handles enum fields specially since protobuf enums only support numeric values
 
-### Configurable Go Package
-- Supports custom Go package paths via `-go_package` flag
-- Automatically generates proper package imports
-- Maintains consistent package structure across generated files
+### Component and Group Support
+- **Components**: XML中的component元素被转换为独立的protobuf消息，避免信息缺失
+- **Groups (重复组)**: FIX协议中的重复组转换为repeated字段和独立的group消息定义
+- **去重处理**: 同一个component或group在多个消息中被引用时，只生成一次定义
+
+### Conversion Functions (Always Generated!)
+The tool automatically generates:
+- **Bidirectional conversion functions** between protobuf structs and QuickFIX Go structs
+- **Enum conversions**: Automatic handling of enum value mapping between string (QuickFIX) and numeric (protobuf) representations
+- **Group conversions**: Support for converting repeating groups between both formats
+- **Component conversions**: Full support for component conversion with proper field mapping
+
+#### Conversion Features:
+- `MessageToProto(quickfix.Messagable) *ProtoMessage` - Convert QuickFIX message to protobuf
+- `MessageFromProto(*ProtoMessage) quickfix.Message` - Convert protobuf message to QuickFIX
+- **Type-safe conversions** with proper error handling
+- **Zero-value handling** to avoid unnecessary field assignments
+- **Enum string mapping** using existing enum extension functions
+
+### Configurable Packages and Paths
+- **Protobuf Go Package**: Specified via `-pb_go_pkg` flag
+- **Separate Output Directories**: Proto files (`-pb_root`) and Go files (`-go_root`) can be in different locations
+- **Custom QuickFIX Package**: Specified via `-fix_pkg` flag for flexible project structures
 
 ### Enum Handling
 Since FIX enums can have string values but protobuf enums only support numeric values, the tool:
@@ -138,5 +165,122 @@ message ExecutionReport {
   string exec_id = 2; // Required
   fixenums.EXEC_TYPE_ENUM exec_type = 3; // Required
   fixenums.ORD_STATUS_ENUM ord_status = 4; // Required
+}
+```
+
+### With Conversion Functions Example
+
+```bash
+generate-pb -conversions -directory ./proto -go_directory ./internal/proto spec/FIX44.xml
+```
+
+This will create:
+```
+proto/
+├── enums.proto           # All enum definitions
+└── messages.proto        # All message definitions
+
+internal/proto/
+├── enum_extensions.go    # Enum string conversion functions  
+└── conversions.go        # Bidirectional conversion functions (NEW!)
+```
+
+### Sample conversions.go
+
+```go
+package proto
+
+import (
+	"strconv"
+	"github.com/quickfixgo/quickfix"
+	"github.com/quickfixgo/quickfix/field"
+	"github.com/quickfixgo/quickfix/enum"
+)
+
+// NewOrderSingleToProto converts QuickFIX NewOrderSingle message to protobuf
+func NewOrderSingleToProto(msg quickfix.Messagable) *NewOrderSingle {
+	proto := &NewOrderSingle{}
+	
+	// Convert field: ClOrdID
+	if fieldValue := msg.GetString(11); fieldValue != "" {
+		proto.ClOrdId = fieldValue
+	}
+	
+	// Convert field: Side
+	if fieldValue := msg.GetString(54); fieldValue != "" {
+		if enumValue := StringToSide(fieldValue); enumValue != SIDE_ENUM_UNSPECIFIED {
+			proto.Side = enumValue
+		}
+	}
+	
+	// Convert field: OrderQty
+	if fieldValue := msg.GetString(38); fieldValue != "" {
+		proto.OrderQty = convertQuickFixToDouble(fieldValue)
+	}
+	
+	return proto
+}
+
+// NewOrderSingleFromProto converts protobuf NewOrderSingle to QuickFIX message
+func NewOrderSingleFromProto(proto *NewOrderSingle) quickfix.Message {
+	msg := quickfix.NewMessage()
+	
+	// Convert field from proto: ClOrdID
+	if proto.ClOrdId != "" {
+		msg.SetString(11, proto.ClOrdId)
+	}
+	
+	// Convert field from proto: Side
+	if proto.Side != SIDE_ENUM_UNSPECIFIED {
+		msg.SetString(54, SideToString(proto.Side))
+	}
+	
+	// Convert field from proto: OrderQty
+	if proto.OrderQty != 0.0 {
+		msg.SetString(38, convertProtoToDouble(proto.OrderQty))
+	}
+	
+	return msg
+}
+```
+
+## Usage Examples
+
+### Basic Protobuf Generation
+```go
+// Generate only protobuf definitions
+go run cmd/generate-pb/generate-pb.go spec/FIX44.xml
+```
+
+### With Conversion Functions
+```go
+// Generate protobuf definitions + conversion functions
+go run cmd/generate-pb/generate-pb.go -conversions spec/FIX44.xml
+```
+
+### Using Generated Conversion Functions
+```go
+package main
+
+import (
+	"github.com/quickfixgo/quickfix"
+	"your-project/proto" // Your generated proto package
+)
+
+func main() {
+	// Create a QuickFIX message
+	quickfixMsg := quickfix.NewMessage()
+	quickfixMsg.SetString(11, "ORDER123")  // ClOrdID
+	quickfixMsg.SetString(54, "1")         // Side = Buy
+	quickfixMsg.SetString(38, "100.0")     // OrderQty
+	
+	// Convert QuickFIX to Protobuf
+	protoMsg := proto.NewOrderSingleToProto(quickfixMsg)
+	
+	// Use protobuf message...
+	// (serialize, send over network, etc.)
+	
+	// Convert back to QuickFIX
+	convertedMsg := proto.NewOrderSingleFromProto(protoMsg)
 }
 ```

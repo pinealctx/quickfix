@@ -25,15 +25,23 @@ var (
 	enumMappingMutex sync.RWMutex
 )
 
-// toProtoType converts FIX field types to protobuf types
+// toProtoType converts FIX field types to protobuf types, using base type resolution
 func toProtoType(fixType string) string {
-	switch strings.ToUpper(fixType) {
+	// If we have a field type name, try to get its base type
+	baseType := fixType
+	if globalFieldType, ok := globalFieldTypesLookup[fixType]; ok {
+		baseType = getBaseFieldType(globalFieldType)
+	}
+
+	switch strings.ToUpper(baseType) {
 	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH":
 		return "int32"
 	case "LENGTH", "TAGNUM":
 		return "uint32"
-	case "FLOAT", "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+	case "FLOAT":
 		return "double"
+	case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+		return "string" // Use string for decimal types to preserve precision
 	case "CHAR":
 		return "string" // Single char as string in proto
 	case "BOOLEAN":
@@ -45,6 +53,64 @@ func toProtoType(fixType string) string {
 	default:
 		return "string" // Default to string for unknown types
 	}
+}
+
+// toProtoTypeCapitalized returns capitalized protobuf type name for conversion functions
+func toProtoTypeCapitalized(fixType string) string {
+	// If we have a field type name, try to get its base type
+	baseType := fixType
+	if globalFieldType, ok := globalFieldTypesLookup[fixType]; ok {
+		baseType = getBaseFieldType(globalFieldType)
+	}
+
+	switch strings.ToUpper(baseType) {
+	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH":
+		return "Int32"
+	case "LENGTH", "TAGNUM":
+		return "Uint32"
+	case "FLOAT":
+		return "Double"
+	case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+		return "Decimal" // Use Decimal for decimal types
+	case "UTCTIMESTAMP", "UTCTIMEONLY", "UTCDATEONLY", "LOCALMKTDATE", "TZTIMESTAMP", "TZTIMEONLY":
+		return "Time" // Use Time for time types
+	case "CHAR", "STRING", "MULTIPLEVALUESTRING", "MULTIPLESTRINGVALUE", "MULTIPLECHARVALUE",
+		"CURRENCY", "EXCHANGE", "COUNTRY", "DATA", "XMLDATA":
+		return "String"
+	case "BOOLEAN":
+		return "Bool"
+	default:
+		return "String"
+	}
+}
+
+// getZeroValue returns the zero value for a given FIX type
+func getZeroValue(fixType string) string {
+	switch strings.ToUpper(fixType) {
+	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH", "LENGTH", "TAGNUM":
+		return "0"
+	case "FLOAT":
+		return "0.0"
+	case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+		return `""` // Empty string for decimal types stored as strings
+	case "BOOLEAN":
+		return "false"
+	case "CHAR", "STRING", "MULTIPLEVALUESTRING", "MULTIPLESTRINGVALUE", "MULTIPLECHARVALUE",
+		"CURRENCY", "EXCHANGE", "COUNTRY", "UTCTIMEONLY", "UTCDATEONLY", "UTCTIMESTAMP",
+		"LOCALMKTDATE", "TZTIMEONLY", "TZTIMESTAMP", "DATA", "XMLDATA":
+		return `""`
+	default:
+		return `""`
+	}
+}
+
+// getAllFields returns all fields from a MessageDef (both required and optional)
+func getAllFields(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
+	var allFields []*datadictionary.FieldDef
+	for _, field := range msgDef.Fields {
+		allFields = append(allFields, field)
+	}
+	return allFields
 }
 
 // toProtoEnumName converts field name to protobuf enum name with conflict resolution
@@ -101,6 +167,24 @@ func sanitizeProtoFieldName(name string) string {
 	result = strings.ReplaceAll(result, " ", "_")
 	result = strings.ReplaceAll(result, "-", "_")
 	return result
+}
+
+// sanitizeProtoFieldNameForGo converts proto field name to Go struct field name (camelCase with uppercase first letter)
+func sanitizeProtoFieldNameForGo(name string) string {
+	// Convert to camelCase with uppercase first letter for Go struct field access
+	result := strings.ToLower(name)
+	result = strings.ReplaceAll(result, " ", "_")
+	result = strings.ReplaceAll(result, "-", "_")
+
+	// Convert snake_case to CamelCase
+	parts := strings.Split(result, "_")
+	var camelParts []string
+	for _, part := range parts {
+		if len(part) > 0 {
+			camelParts = append(camelParts, strings.ToUpper(part[:1])+part[1:])
+		}
+	}
+	return strings.Join(camelParts, "")
 }
 
 // sanitizeEnumValue ensures enum values are valid and unique
@@ -307,14 +391,14 @@ func getEnumKey(fieldName, originalValue string) string {
 // generateEnumValueKey generates the complete enum value key with proper protobuf naming
 // while preserving the original semantic meaning using the enum description
 func generateEnumValueKey(enumName, enumValue string) string {
-	// 首先尝试获取全局字段类型来查找枚举描述
-	// 但是在模板上下文中我们可能需要从当前字段类型获取枚举信息
+	// 首先尝试获取全局字段类型来查找枚����述
+	// 但是在模板上下文中我们���能需要从当前字段类型获取枚举信息
 	sanitizedValue := sanitizeEnumKey(enumValue)
 
 	// 保留原始语义：ENUMNAME_ORIGINALVALUE 格式
 	baseKey := fmt.Sprintf("%s_%s", enumName, sanitizedValue)
 
-	// 检查是否有冲突，如果有冲突则添加最小的数字后缀
+	// ���查是否有冲突，如��有冲突则添加最小的数字后缀
 	enumKeyMutex.Lock()
 	defer enumKeyMutex.Unlock()
 
@@ -400,7 +484,7 @@ func generateEnumValueKeyWithDescriptionDouble(enumName, enumValue, enumDescript
 	defer enumKeyMutex.Unlock()
 
 	lowerKey := strings.ToLower(baseKey)
-	// 检查是否已经存在，如果存在就直接返回（不再认为是冲突）
+	// 检查��否已经存在，如果存在就直接返回（不再认为是冲突）
 	if existingKey, exists := enumKeyTracker[lowerKey]; exists {
 		return existingKey
 	}
@@ -493,7 +577,7 @@ func getAllGroups(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef 
 
 // generateGroupMessageName generates a protobuf message name for a group
 func generateGroupMessageName(groupField *datadictionary.FieldDef) string {
-	// Group名称通常以"No"开头，表示数量字段，我们生成对应的条目消息名
+	// Group名称通常��"No"开头，表示数量字段，我们生成对应的条目消息名
 	groupName := groupField.FieldType.Name()
 	if strings.HasPrefix(groupName, "No") {
 		// 例如：NoAllocs -> AllocGroup
@@ -501,22 +585,6 @@ func generateGroupMessageName(groupField *datadictionary.FieldDef) string {
 	}
 	// 如果不是以"No"开头，直接添加"Group"后缀
 	return groupName + "Group"
-}
-
-// getUniqueGroups returns all unique group definitions across all messages
-// This should be called from template with the Messages slice
-func getUniqueGroups(messages interface{}) []*datadictionary.FieldDef {
-	// We need to handle this at template level since messageInfo is not accessible here
-	// This is a placeholder - actual implementation will be in template
-	return nil
-}
-
-// getUniqueComponents returns all unique component definitions across all messages
-// This should be called from template with the Messages slice
-func getUniqueComponents(messages interface{}) []componentReference {
-	// We need to handle this at template level since messageInfo is not accessible here
-	// This is a placeholder - actual implementation will be in template
-	return nil
 }
 
 // dict creates a new map for template use
@@ -544,23 +612,100 @@ func set(dict map[string]interface{}, key string, value interface{}) string {
 	return "" // Return empty string since this is used for side effects only
 }
 
+// getFieldValueConversion returns the correct method call to get value from a QuickFIX field
+func getFieldValueConversion(fieldType *datadictionary.FieldType) string {
+	if fieldType == nil {
+		return "String()"
+	}
+
+	switch fieldType.Type {
+	case "INT", "LENGTH":
+		return "Int()"
+	case "FLOAT", "PRICE", "AMT", "QTY", "PERCENTAGE":
+		return "Float64()" // These are decimal types that have Float64() method
+	case "BOOLEAN":
+		return "Bool()"
+	case "STRING", "CHAR", "MULTIPLEVALUESTRING", "MULTIPLESTRINGVALUE", "MULTIPLECHARVALUE":
+		return "String()"
+	case "UTCTIMESTAMP", "UTCTIMEONLY", "UTCDATEONLY", "LOCALMKTDATE", "MONTHYEAR", "TZTIMESTAMP", "TZTIMEONLY":
+		return "String()" // Time types typically have String() method
+	case "DATA":
+		return "String()"
+	default:
+		return "String()" // Default fallback
+	}
+}
+
+// getFieldValueConversionCall returns the complete method call to convert QuickFIX field value to string
+func getFieldValueConversionCall(fieldTypeName, fieldType string) string {
+	fieldVar := fmt.Sprintf("%sField", sanitizeProtoFieldName(fieldTypeName))
+
+	// Get the base field type to determine the correct conversion
+	baseType := fieldType
+	if globalFieldType, ok := globalFieldTypesLookup[fieldTypeName]; ok {
+		baseType = getBaseFieldType(globalFieldType)
+	}
+
+	switch baseType {
+	case "INT", "LENGTH", "SEQNUM", "NUMINGROUP", "DAYOFMONTH", "TAGNUM":
+		return fmt.Sprintf("strconv.Itoa(%s.Int())", fieldVar)
+	case "FLOAT":
+		// Regular float types use double conversion
+		return fmt.Sprintf("func() string { if f, ok := %s.Float64(); ok { return strconv.FormatFloat(f, 'f', -1, 64) } else { return %s.String() } }()", fieldVar, fieldVar)
+	case "PRICE", "PRICEOFFSET", "AMT", "QTY", "PERCENTAGE":
+		// Decimal types should preserve precision, return string directly
+		return fmt.Sprintf("%s.String()", fieldVar)
+	case "BOOLEAN":
+		return fmt.Sprintf("func() string { if %s.Bool() { return \"Y\" } else { return \"N\" } }()", fieldVar)
+	default:
+		return fmt.Sprintf("%s.String()", fieldVar)
+	}
+}
+
+// isDecimalField checks if a field type requires decimal conversion with two parameters
+func isDecimalField(fieldTypeName string) bool {
+	// Get the base field type to determine if it's a decimal type
+	if globalFieldType, ok := globalFieldTypesLookup[fieldTypeName]; ok {
+		baseType := getBaseFieldType(globalFieldType)
+		switch strings.ToUpper(baseType) {
+		case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+			return true
+		}
+	}
+	return false
+}
+
+// isTimeField checks if a field type requires time conversion with two parameters
+func isTimeField(fieldTypeName string) bool {
+	// Get the base field type to determine if it's a time type
+	if globalFieldType, ok := globalFieldTypesLookup[fieldTypeName]; ok {
+		baseType := getBaseFieldType(globalFieldType)
+		switch strings.ToUpper(baseType) {
+		case "UTCTIMESTAMP", "UTCTIMEONLY", "UTCDATEONLY", "LOCALMKTDATE", "TZTIMESTAMP", "TZTIMEONLY":
+			return true
+		}
+	}
+	return false
+}
+
 var templateFuncs = template.FuncMap{
-	"toProtoType":                         toProtoType,
-	"toProtoEnumName":                     toProtoEnumName,
-	"toProtoEnumValue":                    toProtoEnumValue,
-	"sanitizeProtoFieldName":              sanitizeProtoFieldName,
-	"hasEnums":                            hasEnums,
-	"getEnumValues":                       getEnumValues,
-	"add":                                 add,
-	"getRequiredFields":                   getRequiredFields,
-	"getOptionalFields":                   getOptionalFields,
-	"getFieldType":                        getFieldType,
-	"sanitizeEnumValue":                   sanitizeEnumValue,
-	"extractPackageName":                  extractPackageName,
-	"sanitizeEnumKey":                     sanitizeEnumKey,
-	"generateUniqueEnumKey":               generateUniqueEnumKey,
-	"generateEnumValueKey":                generateEnumValueKey,
-	"generateEnumValueKeyWithDescription": generateEnumValueKeyWithDescription,
+	"toProtoType":                               toProtoType,
+	"toProtoEnumName":                           toProtoEnumName,
+	"toProtoEnumValue":                          toProtoEnumValue,
+	"sanitizeProtoFieldName":                    sanitizeProtoFieldName,
+	"sanitizeProtoFieldNameForGo":               sanitizeProtoFieldNameForGo,
+	"hasEnums":                                  hasEnums,
+	"getEnumValues":                             getEnumValues,
+	"add":                                       add,
+	"getRequiredFields":                         getRequiredFields,
+	"getOptionalFields":                         getOptionalFields,
+	"getFieldType":                              getFieldType,
+	"sanitizeEnumValue":                         sanitizeEnumValue,
+	"extractPackageName":                        extractPackageName,
+	"sanitizeEnumKey":                           sanitizeEnumKey,
+	"generateUniqueEnumKey":                     generateUniqueEnumKey,
+	"generateEnumValueKey":                      generateEnumValueKey,
+	"generateEnumValueKeyWithDescription":       generateEnumValueKeyWithDescription,
 	"generateEnumValueKeyWithDescriptionDouble": generateEnumValueKeyWithDescriptionDouble,
 	"clearEnumKeyTracker":                       clearEnumKeyTracker,
 	"printf":                                    printf,
@@ -573,7 +718,14 @@ var templateFuncs = template.FuncMap{
 	"getOptionalGroups":                         getOptionalGroups,
 	"getAllGroups":                              getAllGroups,
 	"generateGroupMessageName":                  generateGroupMessageName,
-	"dict":                                   dict,
-	"hasKey":                                hasKey,
-	"set":                                    set,
+	"dict":                                      dict,
+	"hasKey":                                    hasKey,
+	"set":                                       set,
+	"toProtoTypeCapitalized":                    toProtoTypeCapitalized,
+	"getZeroValue":                              getZeroValue,
+	"getAllFields":                              getAllFields,
+	"getFieldValueConversion":                   getFieldValueConversion,
+	"getFieldValueConversionCall":               getFieldValueConversionCall,
+	"isDecimalField":                            isDecimalField,
+	"isTimeField":                               isTimeField,
 }
