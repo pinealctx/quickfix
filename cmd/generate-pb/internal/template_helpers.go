@@ -410,6 +410,140 @@ func generateEnumValueKeyWithDescriptionDouble(enumName, enumValue, enumDescript
 	return baseKey
 }
 
+// getRequiredComponents returns required component references from a MessageDef
+func getRequiredComponents(msgDef *datadictionary.MessageDef) []componentReference {
+	var requiredComponents []componentReference
+	for _, part := range msgDef.Parts {
+		if component, ok := part.(datadictionary.Component); ok && part.Required() {
+			requiredComponents = append(requiredComponents, componentReference{
+				Name:     component.ComponentType.Name(),
+				Required: true,
+			})
+		}
+	}
+	return requiredComponents
+}
+
+// getOptionalComponents returns optional component references from a MessageDef
+func getOptionalComponents(msgDef *datadictionary.MessageDef) []componentReference {
+	var optionalComponents []componentReference
+	for _, part := range msgDef.Parts {
+		if component, ok := part.(datadictionary.Component); ok && !part.Required() {
+			optionalComponents = append(optionalComponents, componentReference{
+				Name:     component.ComponentType.Name(),
+				Required: false,
+			})
+		}
+	}
+	return optionalComponents
+}
+
+// getAllComponents returns all component references from a MessageDef
+func getAllComponents(msgDef *datadictionary.MessageDef) []componentReference {
+	var allComponents []componentReference
+	for _, part := range msgDef.Parts {
+		if component, ok := part.(datadictionary.Component); ok {
+			allComponents = append(allComponents, componentReference{
+				Name:     component.ComponentType.Name(),
+				Required: part.Required(),
+			})
+		}
+	}
+	return allComponents
+}
+
+// componentReference represents a reference to a component in a message
+type componentReference struct {
+	Name     string
+	Required bool
+}
+
+// getRequiredGroups returns required group fields from a MessageDef
+func getRequiredGroups(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
+	var requiredGroups []*datadictionary.FieldDef
+	for tag := range msgDef.RequiredTags {
+		if field, ok := msgDef.Fields[tag]; ok && field.IsGroup() {
+			requiredGroups = append(requiredGroups, field)
+		}
+	}
+	return requiredGroups
+}
+
+// getOptionalGroups returns optional group fields from a MessageDef
+func getOptionalGroups(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
+	var optionalGroups []*datadictionary.FieldDef
+	for tag, field := range msgDef.Fields {
+		if _, isRequired := msgDef.RequiredTags[tag]; !isRequired && field.IsGroup() {
+			optionalGroups = append(optionalGroups, field)
+		}
+	}
+	return optionalGroups
+}
+
+// getAllGroups returns all group fields from a MessageDef
+func getAllGroups(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
+	var allGroups []*datadictionary.FieldDef
+	for _, field := range msgDef.Fields {
+		if field.IsGroup() {
+			allGroups = append(allGroups, field)
+		}
+	}
+	return allGroups
+}
+
+// generateGroupMessageName generates a protobuf message name for a group
+func generateGroupMessageName(groupField *datadictionary.FieldDef) string {
+	// Group名称通常以"No"开头，表示数量字段，我们生成对应的条目消息名
+	groupName := groupField.FieldType.Name()
+	if strings.HasPrefix(groupName, "No") {
+		// 例如：NoAllocs -> AllocGroup
+		return strings.TrimPrefix(groupName, "No") + "Group"
+	}
+	// 如果不是以"No"开头，直接添加"Group"后缀
+	return groupName + "Group"
+}
+
+// getUniqueGroups returns all unique group definitions across all messages
+// This should be called from template with the Messages slice
+func getUniqueGroups(messages interface{}) []*datadictionary.FieldDef {
+	// We need to handle this at template level since messageInfo is not accessible here
+	// This is a placeholder - actual implementation will be in template
+	return nil
+}
+
+// getUniqueComponents returns all unique component definitions across all messages
+// This should be called from template with the Messages slice
+func getUniqueComponents(messages interface{}) []componentReference {
+	// We need to handle this at template level since messageInfo is not accessible here
+	// This is a placeholder - actual implementation will be in template
+	return nil
+}
+
+// dict creates a new map for template use
+func dict(values ...interface{}) map[string]interface{} {
+	if len(values)%2 != 0 {
+		panic("dict requires an even number of arguments")
+	}
+	dict := make(map[string]interface{})
+	for i := 0; i < len(values); i += 2 {
+		key := fmt.Sprintf("%v", values[i])
+		dict[key] = values[i+1]
+	}
+	return dict
+}
+
+// hasKey checks if a key exists in a map
+func hasKey(dict map[string]interface{}, key string) bool {
+	_, exists := dict[key]
+	return exists
+}
+
+// set sets a key-value pair in a map
+func set(dict map[string]interface{}, key string, value interface{}) string {
+	dict[key] = value
+	return "" // Return empty string since this is used for side effects only
+}
+
 var templateFuncs = template.FuncMap{
 	"toProtoType":                         toProtoType,
 	"toProtoEnumName":                     toProtoEnumName,
@@ -432,4 +566,14 @@ var templateFuncs = template.FuncMap{
 	"printf":                                    printf,
 	"recordEnumMapping":                         recordEnumMapping,
 	"getEnumKey":                                getEnumKey,
+	"getRequiredComponents":                     getRequiredComponents,
+	"getOptionalComponents":                     getOptionalComponents,
+	"getAllComponents":                          getAllComponents,
+	"getRequiredGroups":                         getRequiredGroups,
+	"getOptionalGroups":                         getOptionalGroups,
+	"getAllGroups":                              getAllGroups,
+	"generateGroupMessageName":                  generateGroupMessageName,
+	"dict":                                   dict,
+	"hasKey":                                hasKey,
+	"set":                                    set,
 }

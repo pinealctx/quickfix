@@ -68,21 +68,6 @@ type messageInfo struct {
 	*datadictionary.MessageDef
 }
 
-func genProtoMessage(fixPkg string, spec *datadictionary.DataDictionary, msg *datadictionary.MessageDef) {
-	c := protoComponent{
-		Package:         fixPkg,
-		FIXPackage:      fixPkg,
-		FIXSpec:         spec,
-		Name:            msg.Name,
-		GoPackagePrefix: *goPackagePrefix,
-		MessageDef:      msg,
-	}
-
-	// Output all proto files to the same directory
-	filename := strings.ToLower(msg.Name) + ".proto"
-	gen(internal.MessageProtoTemplate, path.Join(*directory, filename), c)
-}
-
 func genProtoEnums() {
 	c := enumComponent{
 		GoPackagePrefix: *goPackagePrefix,
@@ -111,11 +96,25 @@ func genAllMessages(specs []*datadictionary.DataDictionary) {
 
 	for _, spec := range specs {
 		pkg := getPackageName(spec)
+
+		// 处理普通的messages
 		for _, msg := range spec.Messages {
 			allMessages = append(allMessages, messageInfo{
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
+			})
+		}
+
+		// 处理components，将它们也作为messages
+		for _, comp := range spec.ComponentTypes {
+			// 为component创建一个正确的MessageDef包装器
+			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
+
+			allMessages = append(allMessages, messageInfo{
+				Name:       comp.Name(),
+				Package:    pkg,
+				MessageDef: componentMsg,
 			})
 		}
 	}
