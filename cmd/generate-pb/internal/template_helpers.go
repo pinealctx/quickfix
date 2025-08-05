@@ -41,13 +41,44 @@ func toProtoType(fixType string) string {
 	}
 }
 
-// sanitizeProtoFieldName ensures field names are valid for protobuf
+// sanitizeProtoFieldName ensures field names are valid for protobuf (converts CamelCase to snake_case)
 func sanitizeProtoFieldName(name string) string {
-	// Convert to snake_case and ensure it's a valid proto field name
-	result := strings.ToLower(name)
-	result = strings.ReplaceAll(result, " ", "_")
-	result = strings.ReplaceAll(result, "-", "_")
-	return result
+	// Convert CamelCase to snake_case for protobuf field names
+	// Handle special cases like URLLink -> url_link, not u_r_l_link
+	var result strings.Builder
+	runes := []rune(name)
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+
+		// Check if current character is uppercase
+		if r >= 'A' && r <= 'Z' {
+			// Add underscore before uppercase letter if:
+			// 1. It's not the first character AND
+			// 2. The previous character was lowercase OR
+			// 3. The next character is lowercase (end of acronym)
+			if i > 0 {
+				prevIsLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
+				nextIsLower := i < len(runes)-1 && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+
+				if prevIsLower || nextIsLower {
+					result.WriteByte('_')
+				}
+			}
+
+			// Convert to lowercase
+			result.WriteRune(r - ('A' - 'a'))
+		} else {
+			result.WriteRune(r)
+		}
+	}
+
+	// Handle any remaining replacements
+	finalResult := result.String()
+	finalResult = strings.ReplaceAll(finalResult, " ", "_")
+	finalResult = strings.ReplaceAll(finalResult, "-", "_")
+
+	return finalResult
 }
 
 // add function for template arithmetic
