@@ -22,27 +22,38 @@ func InitializeEnumRegistry(specs []*datadictionary.DataDictionary) {
 
 // toProtoType converts FIX field types to protobuf types, with enum support
 func toProtoType(fixType string) string {
-	// Check if this field type has enum values
-	if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(fixType) {
+	// First, check if this exact field type has enum values
+	if globalEnumRegistry != nil {
 		if enum, exists := globalEnumRegistry.GetEnum(fixType); exists {
 			return enum.ProtoName
 		}
 	}
 
-	// If we have a field type name, try to get its base type
-	baseType := fixType
+	// If we have a field type name, try to get its definition and check for enums
 	if globalFieldType, ok := globalFieldTypesLookup[fixType]; ok {
-		baseType = getBaseFieldType(globalFieldType)
+		// Check if this field type has enum values
+		if globalEnumRegistry != nil && len(globalFieldType.Enums) > 0 {
+			if enum, exists := globalEnumRegistry.GetEnum(fixType); exists {
+				return enum.ProtoName
+			}
+		}
 
-		// Check if the base type has enum values
+		// Get the base type for non-enum fields
+		baseType := getBaseFieldType(globalFieldType)
+
+		// Check if the base type has enum values (for derived types)
 		if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(baseType) {
 			if enum, exists := globalEnumRegistry.GetEnum(baseType); exists {
 				return enum.ProtoName
 			}
 		}
+
+		// Use the base type for mapping to protobuf primitive types
+		fixType = baseType
 	}
 
-	switch strings.ToUpper(baseType) {
+	// Map to protobuf primitive types
+	switch strings.ToUpper(fixType) {
 	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH":
 		return "int32"
 	case "LENGTH", "TAGNUM":
@@ -62,6 +73,29 @@ func toProtoType(fixType string) string {
 	default:
 		return "string" // Default to string for unknown types
 	}
+}
+
+// getProtoTypeForField converts a field definition to the correct protobuf type
+// This function handles both enum and non-enum fields correctly
+func getProtoTypeForField(fieldDef *datadictionary.FieldDef) string {
+	if fieldDef == nil {
+		return "string"
+	}
+
+	fieldType, err := getGlobalFieldType(fieldDef)
+	if err != nil {
+		return "string"
+	}
+
+	// First check if this field has enum values by field name
+	if globalEnumRegistry != nil {
+		if enum, exists := globalEnumRegistry.GetEnum(fieldType.Name()); exists {
+			return enum.ProtoName
+		}
+	}
+
+	// If no enum found, use the base type mapping
+	return toProtoType(fieldType.Type)
 }
 
 // isEnumType checks if a field type is an enum type
@@ -300,6 +334,7 @@ func set(dict map[string]interface{}, key string, value interface{}) string {
 
 var templateFuncs = template.FuncMap{
 	"toProtoType":              toProtoType,
+	"getProtoTypeForField":     getProtoTypeForField,
 	"sanitizeProtoFieldName":   sanitizeProtoFieldName,
 	"add":                      add,
 	"getRequiredFields":        getRequiredFields,
