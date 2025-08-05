@@ -9,3 +9,4 @@ _test/tmp
 _vendor*
 gen
 .DS_Store
+*.exe
