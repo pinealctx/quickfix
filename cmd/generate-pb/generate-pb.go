@@ -292,7 +292,7 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 		Messages:        allMessages,
 	}
 
-	gen(internal.AllMessagesProtoTemplate, path.Join(*pbRoot, "messages.proto"), c, config)
+	gen(internal.AllMessagesProtoTemplate, path.Join(*pbRoot, "fix.g.proto"), c, config)
 }
 
 func gen(t *template.Template, fileOut string, data interface{}, config *Config) {
@@ -323,6 +323,50 @@ func gen(t *template.Template, fileOut string, data interface{}, config *Config)
 
 	if config.Verbose {
 		log.Printf("Successfully wrote %s (%d bytes)", fileOut, writer.Len())
+	}
+}
+
+func genEnumHelpers(config *Config) {
+	defer waitGroup.Done()
+
+	if config.Verbose {
+		log.Printf("Generating enum helper functions...")
+	}
+
+	// 直接生成enum helpers，不使用gen函数以避免重复的waitGroup.Done()
+	c := messagesComponent{
+		GoPackagePrefix: *pbGoPkg,
+		QuickfixRoot:    *fixPkg,
+		Messages:        []messageInfo{}, // 这里不需要messages，只需要enum
+	}
+
+	enumHelpersFile := path.Join(config.GoRoot, "enum_helpers.go")
+
+	if config.Verbose {
+		log.Printf("Generating file: %s", enumHelpersFile)
+	}
+
+	writer := new(bytes.Buffer)
+
+	if err := internal.EnumHelpersGoTemplate.Execute(writer, c); err != nil {
+		errors <- fmt.Errorf("template execution failed for %s: %w", enumHelpersFile, err)
+		return
+	}
+
+	if config.DryRun {
+		if config.Verbose {
+			log.Printf("DRY RUN: Would write %d bytes to %s", writer.Len(), enumHelpersFile)
+		}
+		return
+	}
+
+	if err := internal.WriteFile(enumHelpersFile, writer.String()); err != nil {
+		errors <- fmt.Errorf("failed to write %s: %w", enumHelpersFile, err)
+		return
+	}
+
+	if config.Verbose {
+		log.Printf("Successfully wrote %s (%d bytes)", enumHelpersFile, writer.Len())
 	}
 }
 
@@ -357,15 +401,27 @@ func main() {
 
 	internal.BuildGlobalFieldTypes(specs)
 
+	// Initialize enum registry with parsed specifications
+	if config.Verbose {
+		log.Printf("Initializing enum registry...")
+	}
+	internal.InitializeEnumRegistry(specs)
+
 	// Generate files
 	if config.Verbose {
 		log.Printf("Generating protobuf files...")
 	}
 
-	// Generate a single file for all messages
+	// Generate a single file for all messages (includes enum definitions)
 	waitGroup.Add(1)
 	go func() {
 		genAllMessages(specs, config)
+	}()
+
+	// Generate enum helper functions
+	waitGroup.Add(1)
+	go func() {
+		genEnumHelpers(config)
 	}()
 
 	go func() {

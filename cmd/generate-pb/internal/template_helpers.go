@@ -9,14 +9,37 @@ import (
 	"github.com/quickfixgo/quickfix/datadictionary"
 )
 
+// Global enum registry
+var globalEnumRegistry *EnumRegistry
+
+// InitializeEnumRegistry initializes the global enum registry with data from specifications
+func InitializeEnumRegistry(specs []*datadictionary.DataDictionary) {
+	globalEnumRegistry = NewEnumRegistry()
+	globalEnumRegistry.RegisterFieldEnums(specs)
+}
+
 // Template helper functions for protobuf generation
 
-// toProtoType converts FIX field types to protobuf types, using base type resolution
+// toProtoType converts FIX field types to protobuf types, with enum support
 func toProtoType(fixType string) string {
+	// Check if this field type has enum values
+	if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(fixType) {
+		if enum, exists := globalEnumRegistry.GetEnum(fixType); exists {
+			return enum.ProtoName
+		}
+	}
+
 	// If we have a field type name, try to get its base type
 	baseType := fixType
 	if globalFieldType, ok := globalFieldTypesLookup[fixType]; ok {
 		baseType = getBaseFieldType(globalFieldType)
+
+		// Check if the base type has enum values
+		if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(baseType) {
+			if enum, exists := globalEnumRegistry.GetEnum(baseType); exists {
+				return enum.ProtoName
+			}
+		}
 	}
 
 	switch strings.ToUpper(baseType) {
@@ -39,6 +62,42 @@ func toProtoType(fixType string) string {
 	default:
 		return "string" // Default to string for unknown types
 	}
+}
+
+// isEnumType checks if a field type is an enum type
+func isEnumType(fieldType *datadictionary.FieldType) bool {
+	if globalEnumRegistry == nil {
+		return false
+	}
+	return globalEnumRegistry.HasEnum(fieldType.Name())
+}
+
+// getEnumDefinition returns the enum definition for a field type
+func getEnumDefinition(fieldTypeName string) (*EnumDefinition, error) {
+	if globalEnumRegistry == nil {
+		return nil, fmt.Errorf("enum registry not initialized")
+	}
+	enum, exists := globalEnumRegistry.GetEnum(fieldTypeName)
+	if !exists {
+		return nil, fmt.Errorf("enum definition not found for field type: %s", fieldTypeName)
+	}
+	return enum, nil
+}
+
+// hasEnumDefinition checks if an enum definition exists for a field type
+func hasEnumDefinition(fieldTypeName string) bool {
+	if globalEnumRegistry == nil {
+		return false
+	}
+	return globalEnumRegistry.HasEnum(fieldTypeName)
+}
+
+// getAllEnumDefinitions returns all enum definitions
+func getAllEnumDefinitions() []*EnumDefinition {
+	if globalEnumRegistry == nil {
+		return nil
+	}
+	return globalEnumRegistry.GetAllEnums()
 }
 
 // sanitizeProtoFieldName ensures field names are valid for protobuf (converts CamelCase to snake_case)
@@ -251,6 +310,9 @@ var templateFuncs = template.FuncMap{
 	"getOptionalComponents":    getOptionalComponents,
 	"getAllGroups":             getAllGroups,
 	"generateGroupMessageName": generateGroupMessageName,
+	"getAllEnumDefinitions":    getAllEnumDefinitions,
+	"isEnumType":               isEnumType,
+	"hasEnumDefinition":        hasEnumDefinition,
 	"dict":                     dict,
 	"hasKey":                   hasKey,
 	"set":                      set,
