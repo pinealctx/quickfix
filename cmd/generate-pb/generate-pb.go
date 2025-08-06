@@ -422,8 +422,19 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 		}
 	}
 
+	// 对消息进行排序以保证生成顺序一致
+	sort.Slice(allMessages, func(i, j int) bool {
+		// 首先按包名排序
+		if allMessages[i].Package != allMessages[j].Package {
+			return allMessages[i].Package < allMessages[j].Package
+		}
+		// 然后按消息名排序
+		return allMessages[i].Name < allMessages[j].Name
+	})
+
 	if config.Verbose {
 		log.Printf("Generating conversion functions for %d messages", len(allMessages))
+		log.Printf("Sorted %d messages for consistent generation order", len(allMessages))
 	}
 
 	c := messagesComponent{
