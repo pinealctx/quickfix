@@ -334,7 +334,8 @@ func (f fieldInfo) TypeConvert() string {
 	variableName := f.GoVariableName()
 
 	if len(f.Enums) > 0 {
-		return fmt.Sprintf("_ = %s", variableName) // ignore
+		//return fmt.Sprintf("_ = %s", variableName) // ignore
+		return fmt.Sprintf("pbMsg.%s = FIXTo%s[%s]", fieldName, f.Name(), variableName)
 	}
 
 	switch f.Type {
@@ -345,7 +346,6 @@ func (f fieldInfo) TypeConvert() string {
 	case "LENGTH":
 		return fmt.Sprintf("pbMsg.%s = uint32(%s)", fieldName, variableName)
 	case "INT", "SEQNUM", "TAGNUM", "DAYOFMONTH":
-		log.Printf("Converting %s to int32 for protobuf field %s", f.Type, fieldName)
 		return fmt.Sprintf("pbMsg.%s = int32(%s)", fieldName, variableName)
 	case "NUMINGROUP":
 		return fmt.Sprintf("_ = %s", variableName) // ignore
@@ -389,8 +389,7 @@ func (f fieldInfo) ConvertCodes() string {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get %s from FIX message: %%w", err)
 	}
-	%s
-`, f.GoVariableName(), f.GetFIXFunctionName(), f.Name(), f.TypeConvert()))
+	%s`, f.GoVariableName(), f.GetFIXFunctionName(), f.Name(), f.TypeConvert()))
 
 	return b.String()
 }
@@ -463,6 +462,11 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 		}
 		// 然后按消息名排序
 		return allMessages[i].Name < allMessages[j].Name
+	})
+
+	sort.Slice(packages, func(i, j int) bool {
+		// 按包名排序
+		return packages[i] < packages[j]
 	})
 
 	if config.Verbose {
@@ -609,6 +613,11 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 		}
 		// 然后按消息名排序
 		return allMessages[i].Name < allMessages[j].Name
+	})
+
+	sort.Slice(packages, func(i, j int) bool {
+		// 按包名排序
+		return packages[i] < packages[j]
 	})
 
 	if config.Verbose {
