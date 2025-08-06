@@ -483,6 +483,9 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 	// Generate enum proto file
 	genSync(EnumProtoTemplate, path.Join(*pbRoot, "fix.enum.proto"), c, config)
 
+	// Generate component proto file
+	genSync(ComponentProtoTemplate, path.Join(*pbRoot, "fix.component.proto"), c, config)
+
 	// Generate message proto file
 	genSync(MessageProtoTemplate, path.Join(*pbRoot, "fix.message.proto"), c, config)
 }

@@ -102,10 +102,6 @@ func genEnums() {
 }
 
 func genComponents(pkg string, spec *datadictionary.DataDictionary) {
-	// Create a combined MessageDef containing all deduplicated group fields
-	combinedDef := &datadictionary.MessageDef{}
-	combinedDef.Fields = make(map[int]*datadictionary.FieldDef)
-
 	// Use map for deduplication, key is the field signature
 	fieldMap := make(map[string]*datadictionary.FieldDef)
 	allGroupFields := make([]*datadictionary.FieldDef, 0)
@@ -152,13 +148,16 @@ func genComponents(pkg string, spec *datadictionary.DataDictionary) {
 
 	// Sort by field name to ensure consistent generation order
 	sort.Slice(allGroupFields, func(i, j int) bool {
-		return allGroupFields[i].Name() < allGroupFields[j].Name()
+		return allGroupFields[i].Tag() < allGroupFields[j].Tag()
 	})
 
-	// Rebuild Fields map using sorted order
-	for index, field := range allGroupFields {
-		combinedDef.Fields[index] = field
+	dist := make([]datadictionary.MessagePart, len(allGroupFields))
+	for i, field := range allGroupFields {
+		dist[i] = field
 	}
+
+	// Create a combined MessageDef containing all deduplicated group fields
+	combinedDef := datadictionary.NewMessageDef("Components", "", dist)
 
 	c := component{
 		Package:    pkg,
