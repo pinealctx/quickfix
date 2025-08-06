@@ -201,6 +201,11 @@ func (ev *EnumValue) GetProtoEnumValueName(enumName string) string {
 	return sanitizeEnumValueName(enumName, ev.OriginalEnum, ev.Description)
 }
 
+// GetDefaultValueName returns a default unspecified value name for the enum
+func (ev *EnumValue) GetDefaultValueName() string {
+	return "UNSPECIFIED"
+}
+
 // GenerateEnumStringMapping generates Go code for enum to string mapping
 func (ed *EnumDefinition) GenerateEnumStringMapping() string {
 	var builder strings.Builder

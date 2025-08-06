@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -33,6 +34,7 @@ var (
 	dryRun     = flag.Bool("dry-run", false, "Perform dry run without writing files")
 	validate   = flag.Bool("validate", true, "Validate generated code (disable for faster generation)")
 	packageDoc = flag.String("package-doc", "", "Package documentation comment")
+	genProto   = flag.Bool("gen-proto", true, "Generate Go code from proto files using protoc")
 )
 
 // Config holds the validated configuration
@@ -45,6 +47,7 @@ type Config struct {
 	DryRun     bool
 	Validate   bool
 	PackageDoc string
+	GenProto   bool
 	InputFiles []string
 }
 
@@ -59,6 +62,7 @@ func usage() {
 	_, _ = fmt.Fprintf(os.Stderr, "  -verbose\n        Enable verbose output\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  -dry-run\n        Perform dry run without writing files\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  -validate\n        Validate generated code (default: true)\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  -gen-proto\n        Generate Go code from proto files using protoc (default: true)\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  -package-doc string\n        Package documentation comment\n")
 	_, _ = fmt.Fprintf(os.Stderr, "\nExample:\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  %v -pb_go_pkg github.com/mycompany/proto -pb_root ./proto -go_root ./internal/proto -fix_pkg github.com/mycompany/quickfix spec/FIX44.xml\n", os.Args[0])
@@ -141,6 +145,7 @@ func validateConfig() (*Config, error) {
 		DryRun:     *dryRun,
 		Validate:   *validate,
 		PackageDoc: *packageDoc,
+		GenProto:   *genProto,
 		InputFiles: inputFiles,
 	}, nil
 }
@@ -236,6 +241,23 @@ type messagesComponent struct {
 	GoPackagePrefix string
 	QuickfixRoot    string
 	Messages        []messageInfo
+}
+
+// GetImportedPackages returns the list of packages needed for conversion code
+func (c messagesComponent) GetImportedPackages() []string {
+	var imports []string
+
+	// Add specific package imports based on message types
+	packageMap := make(map[string]bool)
+	for _, msg := range c.Messages {
+		pkgPath := c.QuickfixRoot + "/" + msg.Package
+		if !packageMap[pkgPath] {
+			packageMap[pkgPath] = true
+			imports = append(imports, pkgPath)
+		}
+	}
+
+	return imports
 }
 
 type messageInfo struct {
@@ -370,6 +392,134 @@ func genEnumHelpers(config *Config) {
 	}
 }
 
+func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Config) {
+	defer waitGroup.Done()
+
+	var allMessages []messageInfo
+
+	for _, spec := range specs {
+		pkg := getPackageName(spec)
+
+		// 处理普通的messages
+		for _, msg := range spec.Messages {
+			allMessages = append(allMessages, messageInfo{
+				Name:       msg.Name,
+				Package:    pkg,
+				MessageDef: msg,
+			})
+		}
+
+		// 处理components，将它们也作为messages
+		for _, comp := range spec.ComponentTypes {
+			// 为component创建一个正确的MessageDef包装器
+			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
+
+			allMessages = append(allMessages, messageInfo{
+				Name:       comp.Name(),
+				Package:    pkg,
+				MessageDef: componentMsg,
+			})
+		}
+	}
+
+	if config.Verbose {
+		log.Printf("Generating conversion functions for %d messages", len(allMessages))
+	}
+
+	c := messagesComponent{
+		GoPackagePrefix: *pbGoPkg,
+		QuickfixRoot:    *fixPkg,
+		Messages:        allMessages,
+	}
+
+	// Generate FIX to Proto conversion functions directly without using gen()
+	fixToProtoFile := path.Join(config.GoRoot, "fix_to_proto.go")
+
+	if config.Verbose {
+		log.Printf("Generating file: %s", fixToProtoFile)
+	}
+
+	writer := new(bytes.Buffer)
+
+	if err := internal.FixToProtoConversionTemplate.Execute(writer, c); err != nil {
+		errors <- fmt.Errorf("template execution failed for %s: %w", fixToProtoFile, err)
+		return
+	}
+
+	if config.DryRun {
+		if config.Verbose {
+			log.Printf("DRY RUN: Would write %d bytes to %s", writer.Len(), fixToProtoFile)
+		}
+		return
+	}
+
+	if err := internal.WriteFile(fixToProtoFile, writer.String()); err != nil {
+		errors <- fmt.Errorf("failed to write %s: %w", fixToProtoFile, err)
+		return
+	}
+
+	if config.Verbose {
+		log.Printf("Successfully wrote %s (%d bytes)", fixToProtoFile, writer.Len())
+		log.Printf("Generated conversion functions")
+	}
+}
+
+func genProtoGoCode(config *Config) error {
+	if !config.GenProto {
+		if config.Verbose {
+			log.Printf("Skipping protoc code generation (disabled)")
+		}
+		return nil
+	}
+
+	if config.Verbose {
+		log.Printf("Generating Go code from proto files using protoc...")
+	}
+
+	protoFile := path.Join(config.PbRoot, "fix.g.proto")
+
+	// Check if protoc is available
+	if _, err := exec.LookPath("protoc"); err != nil {
+		return fmt.Errorf("protoc not found in PATH. Please install Protocol Buffers compiler: %w", err)
+	}
+
+	// Build protoc command
+	args := []string{
+		"--proto_path=" + config.PbRoot,
+		"--go_out=" + config.GoRoot,
+		"--go_opt=paths=source_relative",
+		"--go_opt=M" + path.Base(protoFile) + "=" + config.PbGoPkg,
+		protoFile,
+	}
+
+	if config.Verbose {
+		log.Printf("Running: protoc %s", strings.Join(args, " "))
+	}
+
+	if config.DryRun {
+		if config.Verbose {
+			log.Printf("DRY RUN: Would run protoc with args: %s", strings.Join(args, " "))
+		}
+		return nil
+	}
+
+	cmd := exec.Command("protoc", args...)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("protoc failed: %w\nOutput: %s", err, string(output))
+	}
+
+	if config.Verbose {
+		log.Printf("Successfully generated Go code from proto files")
+		if len(output) > 0 {
+			log.Printf("Protoc output: %s", string(output))
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	flag.Usage = usage
 	flag.Parse()
@@ -418,6 +568,12 @@ func main() {
 		genAllMessages(specs, config)
 	}()
 
+	// Generate conversion functions
+	waitGroup.Add(1)
+	go func() {
+		genConversionFunctions(specs, config)
+	}()
+
 	// Generate enum helper functions
 	waitGroup.Add(1)
 	go func() {
@@ -434,12 +590,17 @@ func main() {
 		h.Handle(err)
 	}
 
-	// Exit with error if any occurred
+	// Exit with error if any occurred during template generation
 	if h.Err() != nil {
 		if config.Verbose {
-			log.Printf("Generation completed with errors")
+			log.Printf("Generation completed with template errors")
 		}
 		os.Exit(1)
+	}
+
+	// Generate Go code from proto files using protoc
+	if err := genProtoGoCode(config); err != nil {
+		log.Fatalf("Protoc generation error: %v", err)
 	}
 
 	if config.Verbose {

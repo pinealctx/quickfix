@@ -174,6 +174,35 @@ func sanitizeProtoFieldName(name string) string {
 	return finalResult
 }
 
+// protoFieldNameToGoFieldName converts snake_case to PascalCase for Go struct field names
+// This tries to match protoc's own field name conversion rules
+func protoFieldNameToGoFieldName(name string) string {
+	// Handle special cases first
+	specialCases := map[string]string{
+		"rule80a": "Rule80A",
+		// Add more special cases as needed
+	}
+
+	if goName, exists := specialCases[name]; exists {
+		return goName
+	}
+
+	parts := strings.Split(name, "_")
+	var result strings.Builder
+
+	for _, part := range parts {
+		if len(part) > 0 {
+			// Capitalize first letter and append rest
+			result.WriteString(strings.ToUpper(part[:1]))
+			if len(part) > 1 {
+				result.WriteString(part[1:])
+			}
+		}
+	}
+
+	return result.String()
+}
+
 // add function for template arithmetic
 func add(a, b int) int {
 	return a + b
@@ -332,23 +361,137 @@ func set(dict map[string]interface{}, key string, value interface{}) string {
 	return "" // Return empty string since this is used for side effects only
 }
 
+// getFixFieldValue generates code to get a field value from FIX message
+func getFixFieldValue(fieldDef *datadictionary.FieldDef, msgVar string) string {
+	return fmt.Sprintf("%s.Get%s()", msgVar, fieldDef.FieldType.Name())
+}
+
+// getFixGroupValue generates code to get a group from FIX message
+func getFixGroupValue(groupField *datadictionary.FieldDef, msgVar string) string {
+	// Use the quickfix Group method with the group tag to get repeating group
+	return fmt.Sprintf("%s.Group(tag.%s)", msgVar, groupField.FieldType.Name())
+}
+
+// convertFixFieldToProto generates code to convert a FIX field to proto field
+func convertFixFieldToProto(fieldDef *datadictionary.FieldDef, pbMsgVar, fixMsgVar string) string {
+	fieldType, err := getGlobalFieldType(fieldDef)
+	if err != nil {
+		return "string(fieldValue)"
+	}
+
+	fieldName := fieldDef.FieldType.Name()
+
+	// Check if field has enum values
+	if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(fieldName) {
+		return fmt.Sprintf("Convert%sFromFIX(fieldValue)", fieldName)
+	}
+
+	// Handle different field types
+	switch strings.ToUpper(fieldType.Type) {
+	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH":
+		return "func() int32 { if v, e := strconv.Atoi(fieldValue); e == nil { return int32(v) }; return 0 }()"
+	case "LENGTH", "TAGNUM":
+		return "func() uint32 { if v, e := strconv.ParseUint(fieldValue, 10, 32); e == nil { return uint32(v) }; return 0 }()"
+	case "FLOAT":
+		return "func() float64 { if v, e := strconv.ParseFloat(fieldValue, 64); e == nil { return v }; return 0 }()"
+	case "BOOLEAN":
+		return "func() bool { return fieldValue == \"Y\" || fieldValue == \"true\" || fieldValue == \"1\" }()"
+	case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+		return "fieldValue" // Keep as string to preserve precision
+	default:
+		return "fieldValue"
+	}
+}
+
+// setProtoField generates code to set a proto field
+func setProtoField(fieldDef *datadictionary.FieldDef, pbMsgVar, valueVar string) string {
+	protoFieldName := sanitizeProtoFieldName(fieldDef.FieldType.Name())
+	goFieldName := protoFieldNameToGoFieldName(protoFieldName)
+	return fmt.Sprintf("%s.%s = %s", pbMsgVar, goFieldName, valueVar)
+}
+
+// convertProtoFieldToFix generates code to convert a proto field to FIX field
+func convertProtoFieldToFix(fieldDef *datadictionary.FieldDef, fixMsgVar, pbMsgVar string) string {
+	fieldType, err := getGlobalFieldType(fieldDef)
+	if err != nil {
+		return fmt.Sprintf("// Error: cannot convert field %s", fieldDef.FieldType.Name())
+	}
+
+	fieldName := fieldDef.FieldType.Name()
+	protoFieldName := sanitizeProtoFieldName(fieldName)
+	goFieldName := protoFieldNameToGoFieldName(protoFieldName)
+
+	// Check if field has enum values
+	if globalEnumRegistry != nil && globalEnumRegistry.HasEnum(fieldName) {
+		return fmt.Sprintf(`if %s.%s != %s_UNSPECIFIED {
+		%s.Set(field.New%s(Convert%sToFIX(%s.%s)))
+	}`, pbMsgVar, goFieldName, getEnumProtoName(fieldName), fixMsgVar, fieldName, fieldName, pbMsgVar, goFieldName)
+	}
+
+	// Handle different field types
+	switch strings.ToUpper(fieldType.Type) {
+	case "INT", "SEQNUM", "NUMINGROUP", "DAYOFMONTH":
+		return fmt.Sprintf(`if %s.%s != 0 {
+		%s.Set(field.New%s(int(%s.%s)))
+	}`, pbMsgVar, goFieldName, fixMsgVar, fieldName, pbMsgVar, goFieldName)
+	case "LENGTH", "TAGNUM":
+		return fmt.Sprintf(`if %s.%s != 0 {
+		%s.Set(field.New%s(int(%s.%s)))
+	}`, pbMsgVar, goFieldName, fixMsgVar, fieldName, pbMsgVar, goFieldName)
+	case "FLOAT":
+		return fmt.Sprintf(`if %s.%s != 0 {
+		%s.Set(field.New%s(float64(%s.%s)))
+	}`, pbMsgVar, goFieldName, fixMsgVar, fieldName, pbMsgVar, goFieldName)
+	case "BOOLEAN":
+		return fmt.Sprintf(`%s.Set(field.New%s(%s.%s))`, fixMsgVar, fieldName, pbMsgVar, goFieldName)
+	case "PRICE", "PRICEOFFSET", "QTY", "PERCENTAGE", "AMT":
+		return fmt.Sprintf(`if %s.%s != "" {
+		if decimalValue, err := decimal.NewFromString(%s.%s); err == nil {
+			%s.Set(field.New%s(decimalValue, 0))
+		}
+	}`, pbMsgVar, goFieldName, pbMsgVar, goFieldName, fixMsgVar, fieldName)
+	default:
+		return fmt.Sprintf(`if %s.%s != "" {
+		%s.Set(field.New%s(%s.%s))
+	}`, pbMsgVar, goFieldName, fixMsgVar, fieldName, pbMsgVar, goFieldName)
+	}
+}
+
+// getEnumProtoName gets the protobuf enum name for a field
+func getEnumProtoName(fieldName string) string {
+	if globalEnumRegistry == nil {
+		return fieldName
+	}
+	if enum, exists := globalEnumRegistry.GetEnum(fieldName); exists {
+		return enum.ProtoName
+	}
+	return fieldName
+}
+
 var templateFuncs = template.FuncMap{
-	"toProtoType":              toProtoType,
-	"getProtoTypeForField":     getProtoTypeForField,
-	"sanitizeProtoFieldName":   sanitizeProtoFieldName,
-	"add":                      add,
-	"getRequiredFields":        getRequiredFields,
-	"getOptionalFields":        getOptionalFields,
-	"getFieldType":             getFieldType,
-	"extractPackageName":       extractPackageName,
-	"getRequiredComponents":    getRequiredComponents,
-	"getOptionalComponents":    getOptionalComponents,
-	"getAllGroups":             getAllGroups,
-	"generateGroupMessageName": generateGroupMessageName,
-	"getAllEnumDefinitions":    getAllEnumDefinitions,
-	"isEnumType":               isEnumType,
-	"hasEnumDefinition":        hasEnumDefinition,
-	"dict":                     dict,
-	"hasKey":                   hasKey,
-	"set":                      set,
+	"toProtoType":                 toProtoType,
+	"getProtoTypeForField":        getProtoTypeForField,
+	"sanitizeProtoFieldName":      sanitizeProtoFieldName,
+	"protoFieldNameToGoFieldName": protoFieldNameToGoFieldName,
+	"add":                         add,
+	"getRequiredFields":           getRequiredFields,
+	"getOptionalFields":           getOptionalFields,
+	"getFieldType":                getFieldType,
+	"extractPackageName":          extractPackageName,
+	"getRequiredComponents":       getRequiredComponents,
+	"getOptionalComponents":       getOptionalComponents,
+	"getAllGroups":                getAllGroups,
+	"generateGroupMessageName":    generateGroupMessageName,
+	"getAllEnumDefinitions":       getAllEnumDefinitions,
+	"isEnumType":                  isEnumType,
+	"hasEnumDefinition":           hasEnumDefinition,
+	"dict":                        dict,
+	"hasKey":                      hasKey,
+	"set":                         set,
+	"getFixFieldValue":            getFixFieldValue,
+	"getFixGroupValue":            getFixGroupValue,
+	"convertFixFieldToProto":      convertFixFieldToProto,
+	"setProtoField":               setProtoField,
+	"convertProtoFieldToFix":      convertProtoFieldToFix,
+	"getEnumProtoName":            getEnumProtoName,
 }
