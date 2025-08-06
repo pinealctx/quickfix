@@ -1,4 +1,4 @@
-package internal
+package main
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func WriteFile(filename, content string) error {
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", filename, closeErr)
+			_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", filename, closeErr)
 		}
 	}()
 

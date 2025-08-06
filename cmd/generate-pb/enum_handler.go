@@ -1,4 +1,4 @@
-package internal
+package main
 
 import (
 	"fmt"
@@ -210,33 +210,28 @@ func (ev *EnumValue) GetDefaultValueName() string {
 func (ed *EnumDefinition) GenerateEnumStringMapping() string {
 	var builder strings.Builder
 
-	// protobuf生成的Go enum值格式：TypeName_VALUE_NAME
-	// 例如：AccountType_ACCOUNTTYPE_ACCOUNT_IS_CARRIED_ON_CUSTOMER_SIDE_OF_BOOKS
-	// 现在enum名称就是TypeName，不需要移除后缀
 	enumTypePrefix := ed.ProtoName
 
 	// Generate map for enum to string conversion
-	builder.WriteString(fmt.Sprintf("// %sToString converts %s enum values to their FIX string representation\n", ed.ProtoName, ed.ProtoName))
-	builder.WriteString(fmt.Sprintf("var %sToString = map[%s]string{\n", ed.ProtoName, ed.ProtoName))
+	builder.WriteString(fmt.Sprintf("// %sToFIX converts %s enum values to their FIX enum representation\n", ed.ProtoName, ed.ProtoName))
+	builder.WriteString(fmt.Sprintf("var %sToFIX = map[%s]enum.%s{\n", ed.ProtoName, ed.ProtoName, ed.ProtoName))
 
 	for _, value := range ed.Values {
 		enumValueName := value.GetProtoEnumValueName(ed.ProtoName)
-		// 添加protobuf生成的Go代码前缀：TypeName_
 		goEnumValueName := enumTypePrefix + "_" + enumValueName
-		builder.WriteString(fmt.Sprintf("\t%s: \"%s\",\n", goEnumValueName, value.StringValue))
+		builder.WriteString(fmt.Sprintf("\t%s: enum.%s_%s,\n", goEnumValueName, ed.ProtoName, value.Description))
 	}
 
 	builder.WriteString("}\n\n")
 
 	// Generate map for string to enum conversion
-	builder.WriteString(fmt.Sprintf("// StringTo%s converts FIX string values to %s enum values\n", ed.ProtoName, ed.ProtoName))
-	builder.WriteString(fmt.Sprintf("var StringTo%s = map[string]%s{\n", ed.ProtoName, ed.ProtoName))
+	builder.WriteString(fmt.Sprintf("// FIXTo%s converts FIX enum values to %s enum values\n", ed.ProtoName, ed.ProtoName))
+	builder.WriteString(fmt.Sprintf("var FIXTo%s = map[enum.%s]%s{\n", ed.ProtoName, ed.ProtoName, ed.ProtoName))
 
 	for _, value := range ed.Values {
 		enumValueName := value.GetProtoEnumValueName(ed.ProtoName)
-		// 添加protobuf生成的Go代码前缀：TypeName_
 		goEnumValueName := enumTypePrefix + "_" + enumValueName
-		builder.WriteString(fmt.Sprintf("\t\"%s\": %s,\n", value.StringValue, goEnumValueName))
+		builder.WriteString(fmt.Sprintf("\tenum.%s_%s: %s,\n", ed.ProtoName, value.Description, goEnumValueName))
 	}
 
 	builder.WriteString("}\n\n")

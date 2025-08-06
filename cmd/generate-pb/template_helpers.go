@@ -1,4 +1,4 @@
-package internal
+package main
 
 import (
 	"fmt"
@@ -206,6 +206,21 @@ func protoFieldNameToGoFieldName(name string) string {
 // add function for template arithmetic
 func add(a, b int) int {
 	return a + b
+}
+
+// getFields gets all fields from a MessageDef, sorted by field name
+func getFields(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
+	var fields []*datadictionary.FieldDef
+	for _, field := range msgDef.Fields {
+		fields = append(fields, field)
+	}
+
+	// Sort fields by field name for consistent ordering
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].FieldType.Name() < fields[j].FieldType.Name()
+	})
+
+	return fields
 }
 
 // getRequiredFields returns required fields from a MessageDef, sorted by field name
@@ -468,12 +483,87 @@ func getEnumProtoName(fieldName string) string {
 	return fieldName
 }
 
+// toGoFieldName converts a field name to Go struct field name (PascalCase)
+func toGoFieldName(fieldName string) string {
+	// Convert to protobuf field name first (snake_case), then to Go field name (PascalCase)
+	protoName := sanitizeProtoFieldName(fieldName)
+	return protoFieldNameToGoFieldName(protoName)
+}
+
+// hasEnumType checks if a field name has enum values defined
+func hasEnumType(fieldName string) bool {
+	if globalEnumRegistry == nil {
+		return false
+	}
+	_, exists := globalEnumRegistry.GetEnum(fieldName)
+	return exists
+}
+
+// getEnumTypeName gets the protobuf enum type name for a field name
+func getEnumTypeName(fieldName string) string {
+	if globalEnumRegistry == nil {
+		return fieldName
+	}
+	if enum, exists := globalEnumRegistry.GetEnum(fieldName); exists {
+		return enum.ProtoName
+	}
+	return fieldName
+}
+
+func getGoTypeForField(fieldName string) string {
+	// If not found in our mapping, try some heuristics as fallback
+	fieldNameUpper := strings.ToUpper(fieldName)
+
+	// Simple heuristics for common patterns
+	if strings.HasSuffix(fieldNameUpper, "LENGTH") || strings.HasSuffix(fieldNameUpper, "LEN") {
+		return "int32"
+	}
+	if strings.HasSuffix(fieldNameUpper, "QTY") || strings.Contains(fieldNameUpper, "QUANTITY") {
+		return "int32"
+	}
+	if strings.HasSuffix(fieldNameUpper, "PX") || strings.Contains(fieldNameUpper, "PRICE") {
+		return "float64"
+	}
+	if strings.HasSuffix(fieldNameUpper, "AMT") || strings.Contains(fieldNameUpper, "AMOUNT") {
+		return "float64"
+	}
+	if strings.Contains(fieldNameUpper, "PERCENT") || strings.Contains(fieldNameUpper, "RATE") {
+		return "float64"
+	}
+	if strings.Contains(fieldNameUpper, "TIME") || strings.Contains(fieldNameUpper, "DATE") {
+		if strings.Contains(fieldNameUpper, "TIMESTAMP") {
+			return "time.Time"
+		}
+		if strings.Contains(fieldNameUpper, "DATE") {
+			return "string" // LocalMktDate is often a string in Go
+		}
+		return "time.Time" // Default to UTC time only
+	}
+	if strings.Contains(fieldNameUpper, "FLAG") || strings.HasSuffix(fieldNameUpper, "IND") {
+		return "bool"
+	}
+	if strings.Contains(fieldNameUpper, "SEQNUM") || strings.Contains(fieldNameUpper, "MSGSEQNUM") {
+		return "int32"
+	}
+	if strings.Contains(fieldNameUpper, "ID") && (strings.HasSuffix(fieldNameUpper, "ID") || strings.HasPrefix(fieldNameUpper, "REF")) {
+		return "string" // Most IDs are strings in FIX
+	}
+
+	// Default fallback - return string for unknown types
+	return "string"
+}
+
 var templateFuncs = template.FuncMap{
 	"toProtoType":                 toProtoType,
 	"getProtoTypeForField":        getProtoTypeForField,
 	"sanitizeProtoFieldName":      sanitizeProtoFieldName,
 	"protoFieldNameToGoFieldName": protoFieldNameToGoFieldName,
+	"toGoFieldName":               toGoFieldName,
+	"hasEnumType":                 hasEnumType,
+	"getEnumTypeName":             getEnumTypeName,
+	"getGoTypeForField":           getGoTypeForField,
 	"add":                         add,
+	"getFields":                   getFields,
 	"getRequiredFields":           getRequiredFields,
 	"getOptionalFields":           getOptionalFields,
 	"getFieldType":                getFieldType,

@@ -1,4 +1,4 @@
-package internal
+package main
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ func getGlobalFieldType(f *datadictionary.FieldDef) (t *datadictionary.FieldType
 	var ok bool
 	t, ok = globalFieldTypesLookup[f.Name()]
 	if !ok {
-		err = fmt.Errorf("Unknown global type for %v", f.Name())
+		err = fmt.Errorf("unknown global type for %v", f.Name())
 	}
 
 	return

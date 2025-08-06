@@ -14,14 +14,14 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"unicode"
 
-	"github.com/quickfixgo/quickfix/cmd/generate-pb/internal"
 	"github.com/quickfixgo/quickfix/datadictionary"
 )
 
 var (
 	waitGroup sync.WaitGroup
-	errors    = make(chan error)
+	errors    = make(chan error, 10) // Buffered channel to prevent deadlock
 
 	// Command line flags - all required
 	pbGoPkg = flag.String("pb_go_pkg", "", "Go package for generated protobuf files (required)")
@@ -112,19 +112,19 @@ func validateConfig() (*Config, error) {
 
 	// Auto-add FIXT11 if needed (same logic as before)
 	if len(inputFiles) == 1 {
-		dictpath := inputFiles[0]
-		if strings.Contains(dictpath, "FIX50SP1") {
-			fixtPath := strings.Replace(dictpath, "FIX50SP1", "FIXT11", -1)
+		dictPath := inputFiles[0]
+		if strings.Contains(dictPath, "FIX50SP1") {
+			fixtPath := strings.Replace(dictPath, "FIX50SP1", "FIXT11", -1)
 			if _, err := os.Stat(fixtPath); err == nil {
 				inputFiles = append(inputFiles, fixtPath)
 			}
-		} else if strings.Contains(dictpath, "FIX50SP2") {
-			fixtPath := strings.Replace(dictpath, "FIX50SP2", "FIXT11", -1)
+		} else if strings.Contains(dictPath, "FIX50SP2") {
+			fixtPath := strings.Replace(dictPath, "FIX50SP2", "FIXT11", -1)
 			if _, err := os.Stat(fixtPath); err == nil {
 				inputFiles = append(inputFiles, fixtPath)
 			}
-		} else if strings.Contains(dictpath, "FIX50") {
-			fixtPath := strings.Replace(dictpath, "FIX50", "FIXT11", -1)
+		} else if strings.Contains(dictPath, "FIX50") {
+			fixtPath := strings.Replace(dictPath, "FIX50", "FIXT11", -1)
 			if _, err := os.Stat(fixtPath); err == nil {
 				inputFiles = append(inputFiles, fixtPath)
 			}
@@ -241,6 +241,7 @@ type messagesComponent struct {
 	GoPackagePrefix string
 	QuickfixRoot    string
 	Messages        []messageInfo
+	Packages        []string
 }
 
 // GetImportedPackages returns the list of packages needed for conversion code
@@ -260,13 +261,170 @@ func (c messagesComponent) GetImportedPackages() []string {
 	return imports
 }
 
+func (c messagesComponent) GetNonComponentMessages() []messageInfo {
+	var nonComponentMessages []messageInfo
+	for _, msg := range c.Messages {
+		if msg.IsMessage {
+			nonComponentMessages = append(nonComponentMessages, msg)
+		}
+	}
+	return nonComponentMessages
+}
+
+func (c messagesComponent) GetComponentMessages() []messageInfo {
+	var componentMessages []messageInfo
+	for _, msg := range c.Messages {
+		if !msg.IsMessage {
+			componentMessages = append(componentMessages, msg)
+		}
+	}
+	return componentMessages
+}
+
+type fieldInfo struct {
+	*datadictionary.FieldDef
+}
+
+func (f fieldInfo) GoVariableName() string {
+	name := f.GoFieldName()
+	if len(name) > 0 && unicode.IsUpper(rune(name[0])) {
+		name = string(unicode.ToLower(rune(name[0]))) + name[1:]
+	}
+	return name
+}
+
+func (f fieldInfo) GoFieldName() string {
+	return toGoFieldName(f.Name())
+}
+
+func (f fieldInfo) GetFIXFunctionName() string {
+	// Convert field name to FIX function name
+	name := f.Name()
+	if len(name) > 0 && unicode.IsLower(rune(name[0])) {
+		name = string(unicode.ToUpper(rune(name[0]))) + name[1:]
+	}
+	return "Get" + name
+}
+
+func (f fieldInfo) GetProtoFieldName() string {
+	// 获取字段名
+	name := f.GoFieldName()
+
+	// 将下划线命名转换为驼峰命名
+	var result strings.Builder
+	upperNext := false
+	for _, r := range name {
+		if r == '_' {
+			upperNext = true
+			continue
+		}
+		if upperNext {
+			result.WriteRune(unicode.ToUpper(r))
+			upperNext = false
+		} else {
+			result.WriteRune(r)
+		}
+	}
+
+	return result.String()
+}
+
+func (f fieldInfo) TypeConvert() string {
+	fieldName := f.GetProtoFieldName()
+	variableName := f.GoVariableName()
+
+	if len(f.Enums) > 0 {
+		return fmt.Sprintf("_ = %s", variableName) // ignore
+	}
+
+	switch f.Type {
+	case "STRING", "MULTIPLEVALUESTRING", "MULTIPLESTRINGVALUE", "MULTIPLECHARVALUE":
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	case "CHAR":
+		return fmt.Sprintf("pbMsg.%s = string(%s)", fieldName, variableName)
+	case "LENGTH":
+		return fmt.Sprintf("pbMsg.%s = uint32(%s)", fieldName, variableName)
+	case "INT", "SEQNUM", "TAGNUM", "DAYOFMONTH":
+		log.Printf("Converting %s to int32 for protobuf field %s", f.Type, fieldName)
+		return fmt.Sprintf("pbMsg.%s = int32(%s)", fieldName, variableName)
+	case "NUMINGROUP":
+		return fmt.Sprintf("_ = %s", variableName) // ignore
+	case "AMT", "PERCENTAGE", "PRICE", "QTY", "PRICEOFFSET":
+		return fmt.Sprintf(`pbMsg.%s = %s.String()`, fieldName, variableName)
+	case "FLOAT":
+		//return "float64(" + variableName + ".Float64())"
+		return fmt.Sprintf(`pbMsg.%s, _ = %s.Float64()`, fieldName, variableName)
+	case "BOOLEAN":
+		//return "bool(" + variableName + ")"
+		return fmt.Sprintf("pbMsg.%s = bool(%s)", fieldName, variableName)
+	case "UTCTIMESTAMP":
+		//return variableName + ".Unix()"
+		return fmt.Sprintf("pbMsg.%s = %s.Format(\"2006-01-02T15:04:05.999999999Z07:00\")", fieldName, variableName)
+	case "UTCDATE", "UTCTIMEONLY", "LOCALMKTDATE", "TZTIMEONLY", "TZTIMESTAMP":
+		//return variableName + ".String()"
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	case "DATA", "XMLDATA":
+		//return "string(" + variableName + ")"
+		return fmt.Sprintf("pbMsg.%s = string(%s)", fieldName, variableName)
+	case "CURRENCY", "EXCHANGE", "COUNTRY":
+		//return variableName + ".String()"
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	case "MONTHYEAR":
+		//return variableName + ".String()"
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	case "TENOR":
+		//return variableName + ".String()"
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	default:
+		// 对于未知类型，默认转换为字符串
+		//return variableName + ".String()"
+		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
+	}
+}
+
+func (f fieldInfo) ConvertCodes() string {
+	b := strings.Builder{}
+	b.WriteString(fmt.Sprintf(`
+	%s, err := fixMsg.%s()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s from FIX message: %%w", err)
+	}
+	%s
+`, f.GoVariableName(), f.GetFIXFunctionName(), f.Name(), f.TypeConvert()))
+
+	return b.String()
+}
+
 type messageInfo struct {
 	Name    string
 	Package string
 	*datadictionary.MessageDef
+	IsMessage bool
+}
+
+func (m *messageInfo) FIXType() string {
+	return fmt.Sprintf("%s.%s", strings.ToLower(m.Name), toGoFieldName(m.Name))
+}
+
+func (m *messageInfo) GetFields() []fieldInfo {
+	fields := getFields(m.MessageDef)
+	out := make([]fieldInfo, len(fields))
+	for i, f := range fields {
+		out[i] = fieldInfo{FieldDef: f}
+	}
+	return out
 }
 
 func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
+	defer func() {
+		if config.Verbose {
+			log.Printf("Calling waitGroup.Done() for genAllMessages")
+		}
+		waitGroup.Done()
+	}()
+
+	var packages []string
+
 	var allMessages []messageInfo
 
 	for _, spec := range specs {
@@ -278,10 +436,12 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
+				IsMessage:  true,
 			})
+			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
 		}
 
-		// 处理components，将它们也作为messages
+		// 处理components，将���们也作为messages
 		for _, comp := range spec.ComponentTypes {
 			// 为component创建一个正确的MessageDef包装器
 			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
@@ -290,6 +450,7 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 				Name:       comp.Name(),
 				Package:    pkg,
 				MessageDef: componentMsg,
+				IsMessage:  false,
 			})
 		}
 	}
@@ -312,13 +473,17 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 		GoPackagePrefix: *pbGoPkg,
 		QuickfixRoot:    *fixPkg,
 		Messages:        allMessages,
+		Packages:        packages,
 	}
 
-	gen(internal.AllMessagesProtoTemplate, path.Join(*pbRoot, "fix.g.proto"), c, config)
+	// Generate enum proto file
+	genSync(EnumProtoTemplate, path.Join(*pbRoot, "fix.enum.proto"), c, config)
+
+	// Generate message proto file
+	genSync(MessageProtoTemplate, path.Join(*pbRoot, "fix.message.proto"), c, config)
 }
 
-func gen(t *template.Template, fileOut string, data interface{}, config *Config) {
-	defer waitGroup.Done()
+func genSync(t *template.Template, fileOut string, data interface{}, config *Config) {
 
 	if config.Verbose {
 		log.Printf("Generating file: %s", fileOut)
@@ -338,7 +503,7 @@ func gen(t *template.Template, fileOut string, data interface{}, config *Config)
 		return
 	}
 
-	if err := internal.WriteFile(fileOut, writer.String()); err != nil {
+	if err := WriteFile(fileOut, writer.String()); err != nil {
 		errors <- fmt.Errorf("failed to write %s: %w", fileOut, err)
 		return
 	}
@@ -348,8 +513,13 @@ func gen(t *template.Template, fileOut string, data interface{}, config *Config)
 	}
 }
 
-func genEnumHelpers(config *Config) {
-	defer waitGroup.Done()
+func genEnumConversionFunctions(config *Config) {
+	defer func() {
+		if config.Verbose {
+			log.Printf("Calling waitGroup.Done() for genEnumConversionFunctions")
+		}
+		waitGroup.Done()
+	}()
 
 	if config.Verbose {
 		log.Printf("Generating enum helper functions...")
@@ -362,7 +532,7 @@ func genEnumHelpers(config *Config) {
 		Messages:        []messageInfo{}, // 这里不需要messages，只需要enum
 	}
 
-	enumHelpersFile := path.Join(config.GoRoot, "enum_helpers.go")
+	enumHelpersFile := path.Join(config.GoRoot, "fix.enum.conversion.go")
 
 	if config.Verbose {
 		log.Printf("Generating file: %s", enumHelpersFile)
@@ -370,7 +540,7 @@ func genEnumHelpers(config *Config) {
 
 	writer := new(bytes.Buffer)
 
-	if err := internal.EnumHelpersGoTemplate.Execute(writer, c); err != nil {
+	if err := EnumConversionGoTemplate.Execute(writer, c); err != nil {
 		errors <- fmt.Errorf("template execution failed for %s: %w", enumHelpersFile, err)
 		return
 	}
@@ -382,7 +552,7 @@ func genEnumHelpers(config *Config) {
 		return
 	}
 
-	if err := internal.WriteFile(enumHelpersFile, writer.String()); err != nil {
+	if err := WriteFile(enumHelpersFile, writer.String()); err != nil {
 		errors <- fmt.Errorf("failed to write %s: %w", enumHelpersFile, err)
 		return
 	}
@@ -393,9 +563,15 @@ func genEnumHelpers(config *Config) {
 }
 
 func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Config) {
-	defer waitGroup.Done()
+	defer func() {
+		if config.Verbose {
+			log.Printf("Calling waitGroup.Done() for genConversionFunctions")
+		}
+		waitGroup.Done()
+	}()
 
 	var allMessages []messageInfo
+	var packages []string
 
 	for _, spec := range specs {
 		pkg := getPackageName(spec)
@@ -406,7 +582,9 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
+				IsMessage:  true,
 			})
+			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
 		}
 
 		// 处理components，将它们也作为messages
@@ -418,11 +596,12 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 				Name:       comp.Name(),
 				Package:    pkg,
 				MessageDef: componentMsg,
+				IsMessage:  false,
 			})
 		}
 	}
 
-	// 对消息进行排序以保证生成顺序一致
+	// 对消息进行排序以保证��成顺序一致
 	sort.Slice(allMessages, func(i, j int) bool {
 		// 首先按包名排序
 		if allMessages[i].Package != allMessages[j].Package {
@@ -435,16 +614,22 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 	if config.Verbose {
 		log.Printf("Generating conversion functions for %d messages", len(allMessages))
 		log.Printf("Sorted %d messages for consistent generation order", len(allMessages))
+		for i, msg := range allMessages {
+			if i < 5 { // Only log first 5 messages to avoid spam
+				log.Printf("Message %d: %s (Package: %s)", i, msg.Name, msg.Package)
+			}
+		}
 	}
 
 	c := messagesComponent{
 		GoPackagePrefix: *pbGoPkg,
 		QuickfixRoot:    *fixPkg,
 		Messages:        allMessages,
+		Packages:        packages,
 	}
 
 	// Generate FIX to Proto conversion functions directly without using gen()
-	fixToProtoFile := path.Join(config.GoRoot, "fix_to_proto.go")
+	fixToProtoFile := path.Join(config.GoRoot, "fix.message.conversion.go")
 
 	if config.Verbose {
 		log.Printf("Generating file: %s", fixToProtoFile)
@@ -452,9 +637,13 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 
 	writer := new(bytes.Buffer)
 
-	if err := internal.FixToProtoConversionTemplate.Execute(writer, c); err != nil {
+	if err := MessageConversionGoTemplate.Execute(writer, c); err != nil {
 		errors <- fmt.Errorf("template execution failed for %s: %w", fixToProtoFile, err)
 		return
+	}
+
+	if config.Verbose {
+		log.Printf("Template executed successfully, generated %d bytes", writer.Len())
 	}
 
 	if config.DryRun {
@@ -464,7 +653,7 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 		return
 	}
 
-	if err := internal.WriteFile(fixToProtoFile, writer.String()); err != nil {
+	if err := WriteFile(fixToProtoFile, writer.String()); err != nil {
 		errors <- fmt.Errorf("failed to write %s: %w", fixToProtoFile, err)
 		return
 	}
@@ -487,20 +676,23 @@ func genProtoGoCode(config *Config) error {
 		log.Printf("Generating Go code from proto files using protoc...")
 	}
 
-	protoFile := path.Join(config.PbRoot, "fix.g.proto")
+	enumProtoFile := path.Join(config.PbRoot, "fix.enum.proto")
+	messageProtoFile := path.Join(config.PbRoot, "fix.message.proto")
 
 	// Check if protoc is available
 	if _, err := exec.LookPath("protoc"); err != nil {
 		return fmt.Errorf("protoc not found in PATH. Please install Protocol Buffers compiler: %w", err)
 	}
 
-	// Build protoc command
+	// Build protoc command for both proto files
 	args := []string{
 		"--proto_path=" + config.PbRoot,
 		"--go_out=" + config.GoRoot,
 		"--go_opt=paths=source_relative",
-		"--go_opt=M" + path.Base(protoFile) + "=" + config.PbGoPkg,
-		protoFile,
+		"--go_opt=M" + path.Base(enumProtoFile) + "=" + config.PbGoPkg,
+		"--go_opt=M" + path.Base(messageProtoFile) + "=" + config.PbGoPkg,
+		enumProtoFile,
+		messageProtoFile,
 	}
 
 	if config.Verbose {
@@ -546,7 +738,7 @@ func main() {
 	}
 
 	// Create directories
-	if err := createDirectories(config); err != nil {
+	if err = createDirectories(config); err != nil {
 		log.Fatalf("Directory creation error: %v", err)
 	}
 
@@ -560,43 +752,58 @@ func main() {
 		log.Printf("Building global field types from %d specifications", len(specs))
 	}
 
-	internal.BuildGlobalFieldTypes(specs)
+	BuildGlobalFieldTypes(specs)
 
 	// Initialize enum registry with parsed specifications
 	if config.Verbose {
 		log.Printf("Initializing enum registry...")
 	}
-	internal.InitializeEnumRegistry(specs)
+	InitializeEnumRegistry(specs)
 
 	// Generate files
 	if config.Verbose {
 		log.Printf("Generating protobuf files...")
 	}
 
-	// Generate a single file for all messages (includes enum definitions)
-	waitGroup.Add(1)
+	// Generate proto files (enum and message)
+	if config.Verbose {
+		log.Printf("Adding 1 to waitGroup for genAllMessages")
+	}
+	waitGroup.Add(1) // genAllMessages now handles both files synchronously
 	go func() {
 		genAllMessages(specs, config)
 	}()
 
 	// Generate conversion functions
+	if config.Verbose {
+		log.Printf("Adding 1 to waitGroup for genConversionFunctions")
+	}
 	waitGroup.Add(1)
 	go func() {
 		genConversionFunctions(specs, config)
 	}()
 
 	// Generate enum helper functions
+	if config.Verbose {
+		log.Printf("Adding 1 to waitGroup for genEnumConversionFunctions")
+	}
 	waitGroup.Add(1)
 	go func() {
-		genEnumHelpers(config)
+		genEnumConversionFunctions(config)
 	}()
 
 	go func() {
+		if config.Verbose {
+			log.Printf("Starting waitGroup.Wait() to wait for all goroutines to complete")
+		}
 		waitGroup.Wait()
+		if config.Verbose {
+			log.Printf("All goroutines completed, closing errors channel")
+		}
 		close(errors)
 	}()
 
-	var h internal.ErrorHandler
+	var h ErrorHandler
 	for err := range errors {
 		h.Handle(err)
 	}
