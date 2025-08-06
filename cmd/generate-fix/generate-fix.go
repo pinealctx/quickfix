@@ -102,19 +102,22 @@ func genEnums() {
 }
 
 func genComponents(pkg string, spec *datadictionary.DataDictionary) {
-	// Use map for deduplication, key is the field signature
-	fieldMap := make(map[string]*datadictionary.FieldDef)
-	allGroupFields := make([]*datadictionary.FieldDef, 0)
+	// Use map for deduplication, key is the field tag (more precise than name)
+	fieldMap := make(map[int]*datadictionary.FieldDef)
 
 	// Recursively collect all group fields
 	var collectAllGroups func(fields []*datadictionary.FieldDef)
 	collectAllGroups = func(fields []*datadictionary.FieldDef) {
+		// Sort fields by tag to ensure consistent ordering
+		sort.Slice(fields, func(i, j int) bool {
+			return fields[i].Tag() < fields[j].Tag()
+		})
+
 		for _, field := range fields {
 			if field.IsGroup() {
-				key := field.Name()
-				if _, exists := fieldMap[key]; !exists {
-					fieldMap[key] = field
-					allGroupFields = append(allGroupFields, field)
+				tag := field.Tag()
+				if _, exists := fieldMap[tag]; !exists {
+					fieldMap[tag] = field
 					// Recursively process sub-groups
 					collectAllGroups(field.Fields)
 				}
@@ -122,34 +125,57 @@ func genComponents(pkg string, spec *datadictionary.DataDictionary) {
 		}
 	}
 
-	// Helper function to convert map to slice
-	mapToSlice := func(fieldMap map[int]*datadictionary.FieldDef) []*datadictionary.FieldDef {
-		var fields []*datadictionary.FieldDef
-		for _, field := range fieldMap {
-			fields = append(fields, field)
+	// Helper function to extract fields from messages in sorted order
+	extractMessageFields := func(fields map[int]*datadictionary.FieldDef) []*datadictionary.FieldDef {
+		var tags []int
+		for tag := range fields {
+			tags = append(tags, tag)
 		}
-		return fields
+		sort.Ints(tags)
+
+		var result []*datadictionary.FieldDef
+		for _, tag := range tags {
+			result = append(result, fields[tag])
+		}
+		return result
 	}
 
 	// Add Header fields
 	if spec.Header != nil {
-		collectAllGroups(mapToSlice(spec.Header.Fields))
+		headerFields := extractMessageFields(spec.Header.Fields)
+		collectAllGroups(headerFields)
 	}
 
 	// Add Trailer fields
 	if spec.Trailer != nil {
-		collectAllGroups(mapToSlice(spec.Trailer.Fields))
+		trailerFields := extractMessageFields(spec.Trailer.Fields)
+		collectAllGroups(trailerFields)
 	}
 
-	// Add all message fields
-	for _, msg := range spec.Messages {
-		collectAllGroups(mapToSlice(msg.Fields))
+	// Add all message fields with consistent ordering
+	var messageNames []string
+	for name := range spec.Messages {
+		messageNames = append(messageNames, name)
+	}
+	sort.Strings(messageNames)
+
+	for _, name := range messageNames {
+		msg := spec.Messages[name]
+		msgFields := extractMessageFields(msg.Fields)
+		collectAllGroups(msgFields)
 	}
 
-	// Sort by field name to ensure consistent generation order
-	sort.Slice(allGroupFields, func(i, j int) bool {
-		return allGroupFields[i].Tag() < allGroupFields[j].Tag()
-	})
+	// Convert map to sorted slice to ensure consistent ordering
+	var allGroupFields []*datadictionary.FieldDef
+	var tags []int
+	for tag := range fieldMap {
+		tags = append(tags, tag)
+	}
+	sort.Ints(tags)
+
+	for _, tag := range tags {
+		allGroupFields = append(allGroupFields, fieldMap[tag])
+	}
 
 	dist := make([]datadictionary.MessagePart, len(allGroupFields))
 	for i, field := range allGroupFields {
