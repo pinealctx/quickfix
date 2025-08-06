@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -100,6 +101,74 @@ func genEnums() {
 	gen(internal.EnumTemplate, "enum/enums.generated.go", internal.GlobalFieldTypes)
 }
 
+func genComponents(pkg string, spec *datadictionary.DataDictionary) {
+	// Create a combined MessageDef containing all deduplicated group fields
+	combinedDef := &datadictionary.MessageDef{}
+	combinedDef.Fields = make(map[int]*datadictionary.FieldDef)
+
+	// Use map for deduplication, key is the field signature
+	fieldMap := make(map[string]*datadictionary.FieldDef)
+	allGroupFields := make([]*datadictionary.FieldDef, 0)
+
+	// Recursively collect all group fields
+	var collectAllGroups func(fields []*datadictionary.FieldDef)
+	collectAllGroups = func(fields []*datadictionary.FieldDef) {
+		for _, field := range fields {
+			if field.IsGroup() {
+				key := field.Name()
+				if _, exists := fieldMap[key]; !exists {
+					fieldMap[key] = field
+					allGroupFields = append(allGroupFields, field)
+					// Recursively process sub-groups
+					collectAllGroups(field.Fields)
+				}
+			}
+		}
+	}
+
+	// Helper function to convert map to slice
+	mapToSlice := func(fieldMap map[int]*datadictionary.FieldDef) []*datadictionary.FieldDef {
+		var fields []*datadictionary.FieldDef
+		for _, field := range fieldMap {
+			fields = append(fields, field)
+		}
+		return fields
+	}
+
+	// Add Header fields
+	if spec.Header != nil {
+		collectAllGroups(mapToSlice(spec.Header.Fields))
+	}
+
+	// Add Trailer fields
+	if spec.Trailer != nil {
+		collectAllGroups(mapToSlice(spec.Trailer.Fields))
+	}
+
+	// Add all message fields
+	for _, msg := range spec.Messages {
+		collectAllGroups(mapToSlice(msg.Fields))
+	}
+
+	// Sort by field name to ensure consistent generation order
+	sort.Slice(allGroupFields, func(i, j int) bool {
+		return allGroupFields[i].Name() < allGroupFields[j].Name()
+	})
+
+	// Rebuild Fields map using sorted order
+	for index, field := range allGroupFields {
+		combinedDef.Fields[index] = field
+	}
+
+	c := component{
+		Package:    pkg,
+		Name:       "Components",
+		MessageDef: combinedDef,
+		FIXSpec:    spec,
+	}
+	gen(internal.ComponentsTemplate, path.Join(pkg, "components.generated.go"), c)
+}
+
 func gen(t *template.Template, fileOut string, data interface{}) {
 	defer waitGroup.Done()
 	writer := new(bytes.Buffer)
@@ -178,6 +247,9 @@ func main() {
 			waitGroup.Add(1)
 			go genMessage(pkg, spec, m)
 		}
+
+		waitGroup.Add(1)
+		go genComponents(pkg, spec)
 	}
 
 	go func() {

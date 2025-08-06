@@ -128,6 +128,38 @@ func collectStandardImports(m *datadictionary.MessageDef) (imports []string, err
 	return
 }
 
+func collectStandardImportsInMessage(m *datadictionary.MessageDef) (imports []string, err error) {
+	var timeRequired bool
+	for _, f := range m.Fields {
+		if f.IsGroup() {
+			continue
+		}
+
+		var globalType *datadictionary.FieldType
+		if globalType, err = getGlobalFieldType(f); err != nil {
+			return
+		}
+
+		var t string
+		if t, err = quickfixType(globalType); err != nil {
+			return
+		}
+
+		if vt, err := quickfixValueType(t); err != nil {
+			return nil, err
+		} else if vt == "time.Time" {
+			timeRequired = true
+			break
+		}
+	}
+
+	if timeRequired {
+		imports = append(imports, "time")
+	}
+
+	return
+}
+
 func collectExtraImports(m *datadictionary.MessageDef) (imports []string, err error) {
 	var decimalRequired bool
 	importPath := "github.com/shopspring/decimal"
@@ -148,6 +180,34 @@ func collectExtraImports(m *datadictionary.MessageDef) (imports []string, err er
 
 	if decimalRequired {
 		imports = append(imports, importPath)
+	}
+
+	return
+}
+
+func collectExtraImportsInMessage(m *datadictionary.MessageDef) (imports []string, err error) {
+	for _, f := range m.Fields {
+		if f.IsGroup() {
+			continue
+		}
+
+		var globalType *datadictionary.FieldType
+		if globalType, err = getGlobalFieldType(f); err != nil {
+			return
+		}
+
+		var t string
+		if t, err = quickfixType(globalType); err != nil {
+			return
+		}
+
+		if isDecimalType(t) {
+			imports = append(imports, "github.com/shopspring/decimal")
+			if *useUDecimal {
+				imports = append(imports, "github.com/quagmt/udecimal")
+			}
+			break
+		}
 	}
 
 	return
