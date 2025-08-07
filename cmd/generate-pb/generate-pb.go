@@ -277,6 +277,15 @@ func (f fieldInfo) GoFieldName() string {
 	return toGoFieldName(f.Name())
 }
 
+func (f fieldInfo) HasFIXFunctionName() string {
+	// Convert field name to FIX function name
+	name := f.Name()
+	if len(name) > 0 && unicode.IsLower(rune(name[0])) {
+		name = string(unicode.ToUpper(rune(name[0]))) + name[1:]
+	}
+	return "Has" + name
+}
+
 func (f fieldInfo) GetFIXFunctionName() string {
 	// Convert field name to FIX function name
 	name := f.Name()
@@ -365,11 +374,13 @@ func (f fieldInfo) TypeConvert() string {
 func (f fieldInfo) ConvertCodes() string {
 	b := strings.Builder{}
 	b.WriteString(fmt.Sprintf(`
-	%s, err := fixMsg.%s()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get %s from FIX message: %%w", err)
-	}
-	%s`, f.GoVariableName(), f.GetFIXFunctionName(), f.Name(), f.TypeConvert()))
+    if fixMsg.%s() {
+		%s, err := fixMsg.%s()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get %s from FIX message: %%w", err)
+		}
+		%s
+    }`, f.HasFIXFunctionName(), f.GoVariableName(), f.GetFIXFunctionName(), f.Name(), f.TypeConvert()))
 
 	return b.String()
 }
@@ -378,6 +389,51 @@ type messageInfo struct {
 	Name    string
 	Package string
 	*datadictionary.MessageDef
+}
+
+func (m *messageInfo) EnumName() string {
+	// 将 m.Name 转下划线格式 然后再全大写
+	var result strings.Builder
+	runes := []rune(m.Name)
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+
+		// Check if current character is uppercase
+		if r >= 'A' && r <= 'Z' {
+			// Add underscore before uppercase letter if:
+			// 1. It's not the first character AND
+			// 2. The previous character was lowercase OR
+			// 3. The next character is lowercase (end of acronym)
+			if i > 0 {
+				prevIsLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
+				nextIsLower := i < len(runes)-1 && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+
+				if prevIsLower || nextIsLower {
+					result.WriteByte('_')
+				}
+			}
+
+			// Keep uppercase
+			result.WriteRune(r)
+		} else if r >= 'a' && r <= 'z' {
+			// Convert to uppercase
+			result.WriteRune(r - ('a' - 'A'))
+		} else {
+			result.WriteRune(r)
+		}
+	}
+
+	// Handle any remaining replacements
+	finalResult := result.String()
+	finalResult = strings.ReplaceAll(finalResult, " ", "_")
+	finalResult = strings.ReplaceAll(finalResult, "-", "_")
+
+	return finalResult
+}
+
+func (m *messageInfo) PkgName() string {
+	return strings.ToLower(m.Name)
 }
 
 func (m *messageInfo) FIXType() string {

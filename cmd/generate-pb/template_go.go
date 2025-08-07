@@ -22,10 +22,28 @@ package {{extractPackageName .GoPackagePrefix}}
 
 import (
 	"fmt"
+
+	"github.com/quickfixgo/quickfix"
+	"google.golang.org/protobuf/proto"
+	"xsyphon.com/bi/fix/api/fix/enum"
 {{- range .Packages}}
 	"{{.}}"
 {{- end}}
 )
+
+var (
+	Fix2PBMap = make(map[enum.MsgType]ConvertFunc)
+)
+
+type ConvertFunc func(*quickfix.Message) (proto.Message, error)
+
+func init() {
+{{- range .Messages}}
+	Fix2PBMap[enum.MsgType_{{.EnumName}}] = func(message *quickfix.Message) (proto.Message, error) {
+		return {{.Name}}FromFIX({{.PkgName}}.FromMessage(message))
+	}
+{{- end}}
+}
 
 {{range .Messages}}
 // {{.Name}}FromFIX converts a FIX {{.Name}} message to protobuf {{.Name}}
