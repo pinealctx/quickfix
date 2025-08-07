@@ -27,7 +27,7 @@ import (
 {{- end}}
 )
 
-{{range .GetNonComponentMessages}}
+{{range .Messages}}
 // {{.Name}}FromFIX converts a FIX {{.Name}} message to protobuf {{.Name}}
 func {{.Name}}FromFIX(fixMsg {{.FIXType}}) (*{{.Name}}, error) {
 	pbMsg := &{{.Name}}{}

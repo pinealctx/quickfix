@@ -36,11 +36,9 @@ import "fix.enum.proto";
 message {{.Name}} {
 {{$fieldNum := 1}}{{range $field := getRequiredFields .MessageDef}}{{if $field.IsGroup}}  repeated {{generateGroupMessageName $field}} {{sanitizeProtoFieldName $field.FieldType.Name}} = {{$fieldNum}}; // Required group
 {{$fieldNum = add $fieldNum 1}}{{else}}  {{getProtoTypeForField $field}} {{sanitizeProtoFieldName $field.FieldType.Name}} = {{$fieldNum}}; // Required field
-{{$fieldNum = add $fieldNum 1}}{{end}}{{end}}{{range $component := getRequiredComponents .MessageDef}}  {{$component.Name}} {{sanitizeProtoFieldName $component.Name}} = {{$fieldNum}}; // Required component
-{{$fieldNum = add $fieldNum 1}}{{end}}{{range $field := getOptionalFields .MessageDef}}{{if $field.IsGroup}}  repeated {{generateGroupMessageName $field}} {{sanitizeProtoFieldName $field.FieldType.Name}} = {{$fieldNum}}; // Optional group
+{{$fieldNum = add $fieldNum 1}}{{end}}{{end}}{{range $field := getOptionalFields .MessageDef}}{{if $field.IsGroup}}  repeated {{generateGroupMessageName $field}} {{sanitizeProtoFieldName $field.FieldType.Name}} = {{$fieldNum}}; // Optional group
 {{$fieldNum = add $fieldNum 1}}{{else}}  {{getProtoTypeForField $field}} {{sanitizeProtoFieldName $field.FieldType.Name}} = {{$fieldNum}}; // Optional field
-{{$fieldNum = add $fieldNum 1}}{{end}}{{end}}{{range $component := getOptionalComponents .MessageDef}}  {{$component.Name}} {{sanitizeProtoFieldName $component.Name}} = {{$fieldNum}}; // Optional component
-{{$fieldNum = add $fieldNum 1}}{{end}}}
+{{$fieldNum = add $fieldNum 1}}{{end}}{{end}}}
 
 {{end}}
 

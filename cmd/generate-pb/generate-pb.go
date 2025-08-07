@@ -261,26 +261,6 @@ func (c messagesComponent) GetImportedPackages() []string {
 	return imports
 }
 
-func (c messagesComponent) GetNonComponentMessages() []messageInfo {
-	var nonComponentMessages []messageInfo
-	for _, msg := range c.Messages {
-		if msg.IsMessage {
-			nonComponentMessages = append(nonComponentMessages, msg)
-		}
-	}
-	return nonComponentMessages
-}
-
-func (c messagesComponent) GetComponentMessages() []messageInfo {
-	var componentMessages []messageInfo
-	for _, msg := range c.Messages {
-		if !msg.IsMessage {
-			componentMessages = append(componentMessages, msg)
-		}
-	}
-	return componentMessages
-}
-
 type fieldInfo struct {
 	*datadictionary.FieldDef
 }
@@ -398,7 +378,6 @@ type messageInfo struct {
 	Name    string
 	Package string
 	*datadictionary.MessageDef
-	IsMessage bool
 }
 
 func (m *messageInfo) FIXType() string {
@@ -429,28 +408,13 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 	for _, spec := range specs {
 		pkg := getPackageName(spec)
 
-		// 处理普通的messages
 		for _, msg := range spec.Messages {
 			allMessages = append(allMessages, messageInfo{
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
-				IsMessage:  true,
 			})
 			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
-		}
-
-		// 处理components，将���们也作为messages
-		for _, comp := range spec.ComponentTypes {
-			// 为component创建一个正确的MessageDef包装器
-			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
-
-			allMessages = append(allMessages, messageInfo{
-				Name:       comp.Name(),
-				Package:    pkg,
-				MessageDef: componentMsg,
-				IsMessage:  false,
-			})
 		}
 	}
 
@@ -580,38 +544,20 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 	for _, spec := range specs {
 		pkg := getPackageName(spec)
 
-		// 处理普通的messages
 		for _, msg := range spec.Messages {
 			allMessages = append(allMessages, messageInfo{
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
-				IsMessage:  true,
 			})
 			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
 		}
-
-		// 处理components，将它们也作为messages
-		for _, comp := range spec.ComponentTypes {
-			// 为component创建一个正确的MessageDef包装器
-			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
-
-			allMessages = append(allMessages, messageInfo{
-				Name:       comp.Name(),
-				Package:    pkg,
-				MessageDef: componentMsg,
-				IsMessage:  false,
-			})
-		}
 	}
 
-	// 对消息进行排序以保证��成顺序一致
 	sort.Slice(allMessages, func(i, j int) bool {
-		// 首先按包名排序
 		if allMessages[i].Package != allMessages[j].Package {
 			return allMessages[i].Package < allMessages[j].Package
 		}
-		// 然后按消息名排序
 		return allMessages[i].Name < allMessages[j].Name
 	})
 
@@ -623,11 +569,6 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 	if config.Verbose {
 		log.Printf("Generating conversion functions for %d messages", len(allMessages))
 		log.Printf("Sorted %d messages for consistent generation order", len(allMessages))
-		for i, msg := range allMessages {
-			if i < 5 { // Only log first 5 messages to avoid spam
-				log.Printf("Message %d: %s (Package: %s)", i, msg.Name, msg.Package)
-			}
-		}
 	}
 
 	c := messagesComponent{
