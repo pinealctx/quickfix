@@ -241,7 +241,9 @@ type messagesComponent struct {
 	GoPackagePrefix string
 	QuickfixRoot    string
 	Messages        []messageInfo
+	Groups          []groupInfo
 	Packages        []string
+	Package         string
 }
 
 // GetImportedPackages returns the list of packages needed for conversion code
@@ -259,26 +261,6 @@ func (c messagesComponent) GetImportedPackages() []string {
 	}
 
 	return imports
-}
-
-func (c messagesComponent) GetNonComponentMessages() []messageInfo {
-	var nonComponentMessages []messageInfo
-	for _, msg := range c.Messages {
-		if msg.IsMessage {
-			nonComponentMessages = append(nonComponentMessages, msg)
-		}
-	}
-	return nonComponentMessages
-}
-
-func (c messagesComponent) GetComponentMessages() []messageInfo {
-	var componentMessages []messageInfo
-	for _, msg := range c.Messages {
-		if !msg.IsMessage {
-			componentMessages = append(componentMessages, msg)
-		}
-	}
-	return componentMessages
 }
 
 type fieldInfo struct {
@@ -334,11 +316,12 @@ func (f fieldInfo) TypeConvert() string {
 	variableName := f.GoVariableName()
 
 	if len(f.Enums) > 0 {
-		//return fmt.Sprintf("_ = %s", variableName) // ignore
 		return fmt.Sprintf("pbMsg.%s = FIXTo%s[%s]", fieldName, f.Name(), variableName)
 	}
 
 	switch f.Type {
+	case "NUMINGROUP":
+		return fmt.Sprintf("_ = %s", variableName) // ignore
 	case "STRING", "MULTIPLEVALUESTRING", "MULTIPLESTRINGVALUE", "MULTIPLECHARVALUE":
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	case "CHAR":
@@ -347,37 +330,25 @@ func (f fieldInfo) TypeConvert() string {
 		return fmt.Sprintf("pbMsg.%s = uint32(%s)", fieldName, variableName)
 	case "INT", "SEQNUM", "TAGNUM", "DAYOFMONTH":
 		return fmt.Sprintf("pbMsg.%s = int32(%s)", fieldName, variableName)
-	case "NUMINGROUP":
-		return fmt.Sprintf("_ = %s", variableName) // ignore
 	case "AMT", "PERCENTAGE", "PRICE", "QTY", "PRICEOFFSET":
 		return fmt.Sprintf(`pbMsg.%s = %s.String()`, fieldName, variableName)
 	case "FLOAT":
-		//return "float64(" + variableName + ".Float64())"
 		return fmt.Sprintf(`pbMsg.%s, _ = %s.Float64()`, fieldName, variableName)
 	case "BOOLEAN":
-		//return "bool(" + variableName + ")"
 		return fmt.Sprintf("pbMsg.%s = bool(%s)", fieldName, variableName)
 	case "UTCTIMESTAMP":
-		//return variableName + ".Unix()"
 		return fmt.Sprintf("pbMsg.%s = %s.Format(\"2006-01-02T15:04:05.999999999Z07:00\")", fieldName, variableName)
 	case "UTCDATE", "UTCTIMEONLY", "LOCALMKTDATE", "TZTIMEONLY", "TZTIMESTAMP":
-		//return variableName + ".String()"
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	case "DATA", "XMLDATA":
-		//return "string(" + variableName + ")"
 		return fmt.Sprintf("pbMsg.%s = string(%s)", fieldName, variableName)
 	case "CURRENCY", "EXCHANGE", "COUNTRY":
-		//return variableName + ".String()"
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	case "MONTHYEAR":
-		//return variableName + ".String()"
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	case "TENOR":
-		//return variableName + ".String()"
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	default:
-		// 对于未知类型，默认转换为字符串
-		//return variableName + ".String()"
 		return fmt.Sprintf("pbMsg.%s = %s", fieldName, variableName)
 	}
 }
@@ -398,11 +369,14 @@ type messageInfo struct {
 	Name    string
 	Package string
 	*datadictionary.MessageDef
-	IsMessage bool
 }
 
 func (m *messageInfo) FIXType() string {
 	return fmt.Sprintf("%s.%s", strings.ToLower(m.Name), toGoFieldName(m.Name))
+}
+
+func (m *messageInfo) FIXTypeWithoutPkg() string {
+	return fmt.Sprintf("%s.%s", m.Package, toGoFieldName(m.Name))
 }
 
 func (m *messageInfo) GetFields() []fieldInfo {
@@ -435,7 +409,6 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
-				IsMessage:  true,
 			})
 			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
 		}
@@ -449,7 +422,6 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 				Name:       comp.Name(),
 				Package:    pkg,
 				MessageDef: componentMsg,
-				IsMessage:  false,
 			})
 		}
 	}
@@ -483,8 +455,8 @@ func genAllMessages(specs []*datadictionary.DataDictionary, config *Config) {
 	// Generate enum proto file
 	genSync(EnumProtoTemplate, path.Join(*pbRoot, "fix.enum.proto"), c, config)
 
-	// Generate component proto file
-	genSync(ComponentProtoTemplate, path.Join(*pbRoot, "fix.component.proto"), c, config)
+	// Generate group proto file
+	genSync(GroupProtoTemplate, path.Join(*pbRoot, "fix.group.proto"), c, config)
 
 	// Generate message proto file
 	genSync(MessageProtoTemplate, path.Join(*pbRoot, "fix.message.proto"), c, config)
@@ -569,10 +541,10 @@ func genEnumConversionFunctions(config *Config) {
 	}
 }
 
-func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Config) {
+func genMessageConversionFunctions(specs []*datadictionary.DataDictionary, config *Config) {
 	defer func() {
 		if config.Verbose {
-			log.Printf("Calling waitGroup.Done() for genConversionFunctions")
+			log.Printf("Calling waitGroup.Done() for genMessageConversionFunctions")
 		}
 		waitGroup.Done()
 	}()
@@ -583,28 +555,13 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 	for _, spec := range specs {
 		pkg := getPackageName(spec)
 
-		// 处理普通的messages
 		for _, msg := range spec.Messages {
 			allMessages = append(allMessages, messageInfo{
 				Name:       msg.Name,
 				Package:    pkg,
 				MessageDef: msg,
-				IsMessage:  true,
 			})
 			packages = append(packages, fmt.Sprintf("%s/%s/%s", config.FixPkg, pkg, strings.ToLower(msg.Name)))
-		}
-
-		// 处理components，将它们也作为messages
-		for _, comp := range spec.ComponentTypes {
-			// 为component创建一个正确的MessageDef包装器
-			componentMsg := datadictionary.NewMessageDef(comp.Name(), "", comp.Parts())
-
-			allMessages = append(allMessages, messageInfo{
-				Name:       comp.Name(),
-				Package:    pkg,
-				MessageDef: componentMsg,
-				IsMessage:  false,
-			})
 		}
 	}
 
@@ -650,6 +607,126 @@ func genConversionFunctions(specs []*datadictionary.DataDictionary, config *Conf
 	writer := new(bytes.Buffer)
 
 	if err := MessageConversionGoTemplate.Execute(writer, c); err != nil {
+		errors <- fmt.Errorf("template execution failed for %s: %w", fixToProtoFile, err)
+		return
+	}
+
+	if config.Verbose {
+		log.Printf("Template executed successfully, generated %d bytes", writer.Len())
+	}
+
+	if config.DryRun {
+		if config.Verbose {
+			log.Printf("DRY RUN: Would write %d bytes to %s", writer.Len(), fixToProtoFile)
+		}
+		return
+	}
+
+	if err := WriteFile(fixToProtoFile, writer.String()); err != nil {
+		errors <- fmt.Errorf("failed to write %s: %w", fixToProtoFile, err)
+		return
+	}
+
+	if config.Verbose {
+		log.Printf("Successfully wrote %s (%d bytes)", fixToProtoFile, writer.Len())
+		log.Printf("Generated conversion functions")
+	}
+}
+
+type groupInfo struct {
+	Package string
+	*datadictionary.FieldDef
+}
+
+func (g groupInfo) WithoutNoName() string {
+	return strings.TrimPrefix(g.Name(), "No")
+}
+
+func (g groupInfo) Key() string {
+	return fmt.Sprintf("%s.%s", strings.ToLower(g.Package), toGoFieldName(g.Name()))
+}
+
+func (g groupInfo) FIXType() string {
+	return fmt.Sprintf("%s.%s", strings.ToLower(g.Package), toGoFieldName(g.Name()))
+}
+
+func (g groupInfo) GetFields() []fieldInfo {
+	fields := getFieldsByFieldDef(g.FieldDef)
+	out := make([]fieldInfo, len(fields))
+	for i, f := range fields {
+		out[i] = fieldInfo{FieldDef: f}
+	}
+	return out
+}
+
+func genGroupConversionFunctions(specs []*datadictionary.DataDictionary, config *Config) {
+	defer func() {
+		if config.Verbose {
+			log.Printf("Calling waitGroup.Done() for genGroupConversionFunctions")
+		}
+		waitGroup.Done()
+	}()
+
+	var groups = make(map[string]groupInfo)
+	var pkg string
+
+	for _, spec := range specs {
+		pkg = getPackageName(spec)
+
+		for _, msg := range spec.Messages {
+			for _, f := range msg.Fields {
+				if f.IsGroup() {
+					group := groupInfo{
+						Package:  pkg,
+						FieldDef: f,
+					}
+					groups[group.Key()] = group
+				}
+			}
+		}
+
+		for _, comp := range spec.ComponentTypes {
+			for _, f := range comp.Fields() {
+				if f.IsGroup() {
+					group := groupInfo{
+						Package:  pkg,
+						FieldDef: f,
+					}
+					groups[group.Key()] = group
+				}
+			}
+		}
+	}
+
+	var groupsSlice []groupInfo
+	for _, group := range groups {
+		groupsSlice = append(groupsSlice, group)
+	}
+
+	sort.Slice(groupsSlice, func(i, j int) bool {
+		if groupsSlice[i].Package != groupsSlice[j].Package {
+			return groupsSlice[i].Package < groupsSlice[j].Package
+		}
+		return groupsSlice[i].Name() < groupsSlice[j].Name()
+	})
+
+	c := messagesComponent{
+		GoPackagePrefix: *pbGoPkg,
+		QuickfixRoot:    *fixPkg,
+		Groups:          groupsSlice,
+		Package:         pkg,
+	}
+
+	// Generate FIX to Proto conversion functions directly without using gen()
+	fixToProtoFile := path.Join(config.GoRoot, "fix.group.conversion.go")
+
+	if config.Verbose {
+		log.Printf("Generating file: %s", fixToProtoFile)
+	}
+
+	writer := new(bytes.Buffer)
+
+	if err := GroupConversionGoTemplate.Execute(writer, c); err != nil {
 		errors <- fmt.Errorf("template execution failed for %s: %w", fixToProtoFile, err)
 		return
 	}
@@ -778,31 +855,19 @@ func main() {
 	}
 
 	// Generate proto files (enum and message)
-	if config.Verbose {
-		log.Printf("Adding 1 to waitGroup for genAllMessages")
-	}
 	waitGroup.Add(1) // genAllMessages now handles both files synchronously
-	go func() {
-		genAllMessages(specs, config)
-	}()
+	go genAllMessages(specs, config)
 
 	// Generate conversion functions
-	if config.Verbose {
-		log.Printf("Adding 1 to waitGroup for genConversionFunctions")
-	}
 	waitGroup.Add(1)
-	go func() {
-		genConversionFunctions(specs, config)
-	}()
+	go genMessageConversionFunctions(specs, config)
+
+	waitGroup.Add(1)
+	go genGroupConversionFunctions(specs, config)
 
 	// Generate enum helper functions
-	if config.Verbose {
-		log.Printf("Adding 1 to waitGroup for genEnumConversionFunctions")
-	}
 	waitGroup.Add(1)
-	go func() {
-		genEnumConversionFunctions(config)
-	}()
+	go genEnumConversionFunctions(config)
 
 	go func() {
 		if config.Verbose {
@@ -816,7 +881,7 @@ func main() {
 	}()
 
 	var h ErrorHandler
-	for err := range errors {
+	for err = range errors {
 		h.Handle(err)
 	}
 

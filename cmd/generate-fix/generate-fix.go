@@ -23,7 +23,7 @@ var (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: %v [flags] <path to data dictionary> ... \n", os.Args[0])
+	_, _ = fmt.Fprintf(os.Stderr, "usage: %v [flags] <path to data dictionary> ... \n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -101,7 +101,7 @@ func genEnums() {
 	gen(internal.EnumTemplate, "enum/enums.generated.go", internal.GlobalFieldTypes)
 }
 
-func genComponents(pkg string, spec *datadictionary.DataDictionary) {
+func genGroups(pkg string, spec *datadictionary.DataDictionary) {
 	// Use map for deduplication, key is the field tag (more precise than name)
 	fieldMap := make(map[int]*datadictionary.FieldDef)
 
@@ -118,7 +118,7 @@ func genComponents(pkg string, spec *datadictionary.DataDictionary) {
 				tag := field.Tag()
 				if _, exists := fieldMap[tag]; !exists {
 					fieldMap[tag] = field
-					// Recursively process sub-groups
+					// Recursively process subgroups
 					collectAllGroups(field.Fields)
 				}
 			}
@@ -183,15 +183,15 @@ func genComponents(pkg string, spec *datadictionary.DataDictionary) {
 	}
 
 	// Create a combined MessageDef containing all deduplicated group fields
-	combinedDef := datadictionary.NewMessageDef("Components", "", dist)
+	combinedDef := datadictionary.NewMessageDef("Groups", "", dist)
 
 	c := component{
 		Package:    pkg,
-		Name:       "Components",
+		Name:       "Groups",
 		MessageDef: combinedDef,
 		FIXSpec:    spec,
 	}
-	gen(internal.ComponentsTemplate, path.Join(pkg, "components.generated.go"), c)
+	gen(internal.GroupsTemplate, path.Join(pkg, "groups.generated.go"), c)
 }
 
 func gen(t *template.Template, fileOut string, data interface{}) {
@@ -218,16 +218,16 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 1 {
-		dictpath := args[0]
-		if strings.Contains(dictpath, "FIX50SP1") {
-			args = append(args, strings.Replace(dictpath, "FIX50SP1", "FIXT11", -1))
-		} else if strings.Contains(dictpath, "FIX50SP2") {
-			args = append(args, strings.Replace(dictpath, "FIX50SP2", "FIXT11", -1))
-		} else if strings.Contains(dictpath, "FIX50") {
-			args = append(args, strings.Replace(dictpath, "FIX50", "FIXT11", -1))
+		dictPath := args[0]
+		if strings.Contains(dictPath, "FIX50SP1") {
+			args = append(args, strings.Replace(dictPath, "FIX50SP1", "FIXT11", -1))
+		} else if strings.Contains(dictPath, "FIX50SP2") {
+			args = append(args, strings.Replace(dictPath, "FIX50SP2", "FIXT11", -1))
+		} else if strings.Contains(dictPath, "FIX50") {
+			args = append(args, strings.Replace(dictPath, "FIX50", "FIXT11", -1))
 		}
 	}
-	specs := []*datadictionary.DataDictionary{}
+	var specs []*datadictionary.DataDictionary
 
 	for _, dataDictPath := range args {
 		spec, err := datadictionary.Parse(dataDictPath)
@@ -274,7 +274,7 @@ func main() {
 		}
 
 		waitGroup.Add(1)
-		go genComponents(pkg, spec)
+		go genGroups(pkg, spec)
 	}
 
 	go func() {

@@ -110,10 +110,8 @@ func checkFieldTimeRequired(f *datadictionary.FieldDef) (required bool, err erro
 func collectStandardImports(m *datadictionary.MessageDef) (imports []string, err error) {
 	var timeRequired bool
 	for _, f := range m.Fields {
-		if !timeRequired {
-			if timeRequired, err = checkFieldTimeRequired(f); err != nil {
-				return
-			}
+		if timeRequired, err = checkFieldTimeRequired(f); err != nil {
+			return
 		}
 
 		if timeRequired {
@@ -167,10 +165,8 @@ func collectExtraImports(m *datadictionary.MessageDef) (imports []string, err er
 		importPath = "github.com/quagmt/udecimal"
 	}
 	for _, f := range m.Fields {
-		if !decimalRequired {
-			if decimalRequired, err = checkFieldDecimalRequired(f); err != nil {
-				return
-			}
+		if decimalRequired, err = checkFieldDecimalRequired(f); err != nil {
+			return
 		}
 
 		if decimalRequired {

@@ -208,6 +208,39 @@ func add(a, b int) int {
 	return a + b
 }
 
+func getFieldsByFieldDef(fieldDef *datadictionary.FieldDef) []*datadictionary.FieldDef {
+	if fieldDef == nil {
+		return nil
+	}
+
+	fieldsHash := make(map[string]*datadictionary.FieldDef)
+
+	for _, childField := range fieldDef.Fields {
+		//if childField.IsGroup() {
+		//	// If it's a group, we need to add the group field itself and its children
+		//	fieldsHash[childField.FieldType.Name()] = childField
+		//	groupFields := getFieldsByFieldDef(childField)
+		//	for _, groupField := range groupFields {
+		//		fieldsHash[groupField.FieldType.Name()] = groupField
+		//	}
+		//	continue
+		//}
+		// For non-group fields, just add the field itself
+		fieldsHash[childField.FieldType.Name()] = childField
+	}
+
+	fields := make([]*datadictionary.FieldDef, 0, len(fieldsHash))
+	for _, field := range fieldsHash {
+		fields = append(fields, field)
+	}
+
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].FieldType.Name() < fields[j].FieldType.Name()
+	})
+
+	return fields
+}
+
 // getFields gets all fields from a MessageDef, sorted by field name
 func getFields(msgDef *datadictionary.MessageDef) []*datadictionary.FieldDef {
 	var fields []*datadictionary.FieldDef
