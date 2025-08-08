@@ -364,9 +364,9 @@ func validateField(d *datadictionary.DataDictionary,
 	_ datadictionary.TagSet,
 	field TagValue,
 ) MessageRejectError {
-	if len(field.value) == 0 {
-		return TagSpecifiedWithoutAValue(field.tag)
-	}
+	//if len(field.value) == 0 {
+	//	return TagSpecifiedWithoutAValue(field.tag)
+	//}
 
 	fieldType, isMessageField := getFieldType(d, int(field.tag))
 	if !isMessageField && !checkFieldNotDefined(settings, field.tag) {
