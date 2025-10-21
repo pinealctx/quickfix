@@ -454,6 +454,19 @@ const (
 	//  - N
 	ValidateFieldsOutOfOrder string = "ValidateFieldsOutOfOrder"
 
+	// ValidateFieldsHaveValues if set to N, fields without values (i.e. |11=| for an empty ClOrdID)
+	// will not be rejected, even if RejectInvalidMessage is set to N.
+	// Useful for connecting to systems that improperly send empty tags.
+	//
+	// Required: No
+	//
+	// Default: Y
+	//
+	// Valid Values:
+	//  - Y
+	//  - N
+	ValidateFieldsHaveValues string = "ValidateFieldsHaveValues"
+
 	// CheckLatency if set to Y, messages must be received from the counter-party within a defined number of seconds.
 	// It is useful to turn this off if a system uses localtime for it's timestamps instead of GMT.
 	//

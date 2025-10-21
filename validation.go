@@ -34,12 +34,14 @@ type ValidatorSettings struct {
 	RejectInvalidMessage      bool
 	AllowUnknownMessageFields bool
 	CheckUserDefinedFields    bool
+	CheckFieldsHaveValues     bool
 }
 
 // Default configuration for message validation.
 // See http://www.quickfixengine.org/quickfix/doc/html/configuration.html.
 var defaultValidatorSettings = ValidatorSettings{
 	CheckFieldsOutOfOrder:     true,
+	CheckFieldsHaveValues:     true,
 	RejectInvalidMessage:      true,
 	AllowUnknownMessageFields: false,
 	CheckUserDefinedFields:    true,
@@ -102,21 +104,21 @@ func (v *fixtValidator) Validate(msg *Message) MessageRejectError {
 }
 
 func validateFIX(d *datadictionary.DataDictionary, settings ValidatorSettings, msgType string, msg *Message) MessageRejectError {
-	if err := validateMsgType(d, msgType, msg); err != nil {
-		return err
-	}
+	if d != nil {
+		if err := validateMsgType(d, msgType, msg); err != nil {
+			return err
+		}
 
-	if err := validateRequired(d, d, msgType, msg); err != nil {
-		return err
-	}
-
-	if settings.CheckFieldsOutOfOrder {
-		if err := validateOrder(msg); err != nil {
+		if err := validateRequired(d, d, msgType, msg); err != nil {
 			return err
 		}
 	}
 
-	if settings.RejectInvalidMessage {
+	if err := validateFieldContent(msg, settings.CheckFieldsHaveValues, settings.CheckFieldsOutOfOrder); err != nil {
+		return err
+	}
+
+	if settings.RejectInvalidMessage && d != nil {
 		if err := validateFields(d, d, settings, msgType, msg); err != nil {
 			return err
 		}
@@ -130,21 +132,21 @@ func validateFIX(d *datadictionary.DataDictionary, settings ValidatorSettings, m
 }
 
 func validateFIXT(transportDD, appDD *datadictionary.DataDictionary, settings ValidatorSettings, msgType string, msg *Message) MessageRejectError {
-	if err := validateMsgType(appDD, msgType, msg); err != nil {
-		return err
-	}
+	if appDD != nil && transportDD != nil {
+		if err := validateMsgType(appDD, msgType, msg); err != nil {
+			return err
+		}
 
-	if err := validateRequired(transportDD, appDD, msgType, msg); err != nil {
-		return err
-	}
-
-	if settings.CheckFieldsOutOfOrder {
-		if err := validateOrder(msg); err != nil {
+		if err := validateRequired(transportDD, appDD, msgType, msg); err != nil {
 			return err
 		}
 	}
 
-	if settings.RejectInvalidMessage {
+	if err := validateFieldContent(msg, settings.CheckFieldsHaveValues, settings.CheckFieldsOutOfOrder); err != nil {
+		return err
+	}
+
+	if settings.RejectInvalidMessage && appDD != nil && transportDD != nil {
 		if err := validateFields(transportDD, appDD, settings, msgType, msg); err != nil {
 			return err
 		}
@@ -270,20 +272,26 @@ func validateVisitGroupField(fieldDef *datadictionary.FieldDef, fieldStack []Tag
 	return fieldStack, nil
 }
 
-func validateOrder(msg *Message) MessageRejectError {
+func validateFieldContent(msg *Message, checkFieldsHaveValues, checkFieldsOutOfOrder bool) MessageRejectError {
+	if !checkFieldsHaveValues && !checkFieldsOutOfOrder {
+		return nil
+	}
 	inHeader := true
 	inTrailer := false
 	for _, field := range msg.fields {
 		t := field.tag
+		if checkFieldsHaveValues && len(field.value) == 0 {
+			return TagSpecifiedWithoutAValue(t)
+		}
 		switch {
 		case inHeader && t.IsHeader():
 		case inHeader && !t.IsHeader():
 			inHeader = false
-		case !inHeader && t.IsHeader():
+		case !inHeader && t.IsHeader() && checkFieldsOutOfOrder:
 			return tagSpecifiedOutOfRequiredOrder(t)
 		case t.IsTrailer():
 			inTrailer = true
-		case inTrailer && !t.IsTrailer():
+		case inTrailer && !t.IsTrailer() && checkFieldsOutOfOrder:
 			return tagSpecifiedOutOfRequiredOrder(t)
 		}
 	}
