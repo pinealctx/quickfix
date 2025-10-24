@@ -21,6 +21,7 @@ type SessionSettings struct {
 	TimeZone                     *time.Location
 	ResetSeqTime                 time.Time
 	EnableResetSeqTime           bool
+	InChanCapacity               int
 
 	// Required on logon for FIX.T.1 messages.
 	DefaultApplVerID string
