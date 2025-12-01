@@ -201,7 +201,7 @@ func tcInvalidTagNumberHeader() validateTest {
 	invalidHeaderFieldMessage := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	invalidHeaderFieldMessage.Header.SetField(tag, FIXString("hello"))
-	msgBytes := invalidHeaderFieldMessage.build()
+	msgBytes := invalidHeaderFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Header",
@@ -219,7 +219,7 @@ func tcInvalidTagNumberHeaderFixT() validateTest {
 	invalidHeaderFieldMessage := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	invalidHeaderFieldMessage.Header.SetField(tag, FIXString("hello"))
-	msgBytes := invalidHeaderFieldMessage.build()
+	msgBytes := invalidHeaderFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Header FIXT",
@@ -236,7 +236,7 @@ func tcInvalidTagNumberBody() validateTest {
 	invalidBodyFieldMessage := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	invalidBodyFieldMessage.Body.SetField(tag, FIXString("hello"))
-	msgBytes := invalidBodyFieldMessage.build()
+	msgBytes := invalidBodyFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Body",
@@ -254,7 +254,7 @@ func tcInvalidTagNumberBodyFixT() validateTest {
 	invalidBodyFieldMessage := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	invalidBodyFieldMessage.Body.SetField(tag, FIXString("hello"))
-	msgBytes := invalidBodyFieldMessage.build()
+	msgBytes := invalidBodyFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Body FIXT",
@@ -271,7 +271,7 @@ func tcInvalidTagNumberTrailer() validateTest {
 	invalidTrailerFieldMessage := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	invalidTrailerFieldMessage.Trailer.SetField(tag, FIXString("hello"))
-	msgBytes := invalidTrailerFieldMessage.build()
+	msgBytes := invalidTrailerFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Trailer",
@@ -289,7 +289,7 @@ func tcInvalidTagNumberTrailerFixT() validateTest {
 	invalidTrailerFieldMessage := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	invalidTrailerFieldMessage.Trailer.SetField(tag, FIXString("hello"))
-	msgBytes := invalidTrailerFieldMessage.build()
+	msgBytes := invalidTrailerFieldMessage.Build()
 
 	return validateTest{
 		TestName:             "Invalid Tag Number Trailer FIXT",
@@ -306,7 +306,7 @@ func tcTagNotDefinedForMessage() validateTest {
 	invalidMsg := createFIX40NewOrderSingle()
 	tag := Tag(41)
 	invalidMsg.Body.SetField(tag, FIXString("hello"))
-	msgBytes := invalidMsg.build()
+	msgBytes := invalidMsg.Build()
 
 	return validateTest{
 		TestName:             "Tag Not Defined For Message",
@@ -324,7 +324,7 @@ func tcTagNotDefinedForMessageFixT() validateTest {
 	invalidMsg := createFIX50SP2NewOrderSingle()
 	tag := Tag(41)
 	invalidMsg.Body.SetField(tag, FIXString("hello"))
-	msgBytes := invalidMsg.build()
+	msgBytes := invalidMsg.Build()
 
 	return validateTest{
 		TestName:             "Tag Not Defined For Message FIXT",
@@ -340,7 +340,7 @@ func tcTagIsDefinedForMessage() validateTest {
 	dict, _ := datadictionary.Parse("spec/FIX43.xml")
 	validator := NewValidator(defaultValidatorSettings, dict, nil)
 	validMsg := createFIX43NewOrderSingle()
-	msgBytes := validMsg.build()
+	msgBytes := validMsg.Build()
 
 	return validateTest{
 		TestName:          "TagIsDefinedForMessage",
@@ -356,7 +356,7 @@ func tcTagIsDefinedForMessageFixT() validateTest {
 	appDict, _ := datadictionary.Parse("spec/FIX50SP2.xml")
 	validator := NewValidator(defaultValidatorSettings, appDict, tDict)
 	validMsg := createFIX50SP2NewOrderSingle()
-	msgBytes := validMsg.build()
+	msgBytes := validMsg.Build()
 
 	return validateTest{
 		TestName:          "TagIsDefinedForMessage FIXT",
@@ -387,7 +387,7 @@ func tcFieldNotFoundBody() validateTest {
 
 	tag := Tag(40)
 	// Ord type is required. invalidMsg1.Body.SetField(Tag(40), "A")).
-	msgBytes := invalidMsg1.build()
+	msgBytes := invalidMsg1.Build()
 
 	return validateTest{
 		TestName:             "FieldNotFoundBody",
@@ -421,7 +421,7 @@ func tcFieldNotFoundBodyFixT() validateTest {
 
 	tag := Tag(40)
 	// Ord type is required. invalidMsg1.Body.SetField(Tag(40), "A")).
-	msgBytes := invalidMsg1.build()
+	msgBytes := invalidMsg1.Build()
 
 	return validateTest{
 		TestName:             "FieldNotFoundBody FIXT",
@@ -453,7 +453,7 @@ func tcFieldNotFoundHeader() validateTest {
 
 	// Sending time is required. invalidMsg2.Header.FieldMap.SetField(tag.SendingTime, "0")).
 	tag := tagSendingTime
-	msgBytes := invalidMsg2.build()
+	msgBytes := invalidMsg2.Build()
 
 	return validateTest{
 		TestName:             "FieldNotFoundHeader",
@@ -486,7 +486,7 @@ func tcFieldNotFoundHeaderFixT() validateTest {
 
 	// Sending time is required. invalidMsg2.Header.FieldMap.SetField(tag.SendingTime, "0")).
 	tag := tagSendingTime
-	msgBytes := invalidMsg2.build()
+	msgBytes := invalidMsg2.Build()
 
 	return validateTest{
 		TestName:             "FieldNotFoundHeader FIXT",
@@ -504,7 +504,7 @@ func tcTagSpecifiedWithoutAValue() validateTest {
 
 	bogusTag := Tag(109)
 	builder.Body.SetField(bogusTag, FIXString(""))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag SpecifiedWithoutAValue",
@@ -525,7 +525,7 @@ func tcTagSpecifiedWithoutAValueValidateHasValues() validateTest {
 
 	bogusTag := Tag(109)
 	builder.Body.SetField(bogusTag, FIXString(""))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag SpecifiedWithoutAValue",
@@ -545,7 +545,7 @@ func tcTagSpecifiedWithoutAValueValidateHasValuesNoDataDictionary() validateTest
 
 	bogusTag := Tag(109)
 	builder.Body.SetField(bogusTag, FIXString(""))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag SpecifiedWithoutAValue",
@@ -564,7 +564,7 @@ func tcTagSpecifiedWithoutAValueFixT() validateTest {
 
 	bogusTag := Tag(109)
 	builder.Body.SetField(bogusTag, FIXString(""))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag SpecifiedWithoutAValue FIXT",
@@ -583,7 +583,7 @@ func tcTagSpecifiedWithoutAValueFixTValidateHasValues() validateTest {
 
 	bogusTag := Tag(109)
 	builder.Body.SetField(bogusTag, FIXString(""))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag SpecifiedWithoutAValue FIXT",
@@ -599,7 +599,7 @@ func tcInvalidMsgType() validateTest {
 	validator := NewValidator(defaultValidatorSettings, dict, nil)
 	builder := createFIX40NewOrderSingle()
 	builder.Header.SetField(tagMsgType, FIXString("z"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Invalid MsgType",
@@ -615,7 +615,7 @@ func tcInvalidMsgTypeFixT() validateTest {
 	validator := NewValidator(defaultValidatorSettings, appDict, tDict)
 	builder := createFIX50SP2NewOrderSingle()
 	builder.Header.SetField(tagMsgType, FIXString("zz"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Invalid MsgType FIXT",
@@ -632,7 +632,7 @@ func tcValueIsIncorrect() validateTest {
 	tag := Tag(21)
 	builder := createFIX40NewOrderSingle()
 	builder.Body.SetField(tag, FIXString("4"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "ValueIsIncorrect",
@@ -651,7 +651,7 @@ func tcValueIsIncorrectFixT() validateTest {
 	tag := Tag(21)
 	builder := createFIX50SP2NewOrderSingle()
 	builder.Body.SetField(tag, FIXString("4"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "ValueIsIncorrect FIXT",
@@ -668,7 +668,7 @@ func tcIncorrectDataFormatForValue() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(38)
 	builder.Body.SetField(tag, FIXString("+200.00"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "IncorrectDataFormatForValue",
@@ -686,7 +686,7 @@ func tcIncorrectDataFormatForValueFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(38)
 	builder.Body.SetField(tag, FIXString("+200.00"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "IncorrectDataFormatForValue FIXT",
@@ -705,7 +705,7 @@ func tcTagSpecifiedOutOfRequiredOrderHeader() validateTest {
 	tag := tagOnBehalfOfCompID
 	// Should be in header.
 	builder.Body.SetField(tag, FIXString("CWB"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag specified out of required order in Header",
@@ -725,7 +725,7 @@ func tcTagSpecifiedOutOfRequiredOrderHeaderFixT() validateTest {
 	tag := tagOnBehalfOfCompID
 	// Should be in header.
 	builder.Body.SetField(tag, FIXString("CWB"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Tag specified out of required order in Header FIXT",
@@ -744,7 +744,7 @@ func tcTagSpecifiedOutOfRequiredOrderTrailer() validateTest {
 	tag := tagSignature
 	// Should be in trailer.
 	builder.Body.SetField(tag, FIXString("SIG"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	refTag := Tag(100)
 	return validateTest{
@@ -765,7 +765,7 @@ func tcTagSpecifiedOutOfRequiredOrderTrailerFixT() validateTest {
 	tag := tagSignature
 	// Should be in trailer.
 	builder.Body.SetField(tag, FIXString("SIG"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	refTag := Tag(100)
 	return validateTest{
@@ -786,7 +786,7 @@ func tcInvalidTagCheckDisabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Invalid Tag Check - Disabled",
@@ -806,7 +806,7 @@ func tcInvalidTagCheckDisabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Invalid Tag Check - Disabled FIXT",
@@ -825,7 +825,7 @@ func tcInvalidTagCheckEnabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Invalid Tag Check - Enabled",
@@ -846,7 +846,7 @@ func tcInvalidTagCheckEnabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Invalid Tag Check - Enabled FIXT",
@@ -866,7 +866,7 @@ func tcAllowUnknownMessageFieldsEnabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(41)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Allow Unknown Message Fields - Enabled",
@@ -886,7 +886,7 @@ func tcAllowUnknownMessageFieldsEnabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(41)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Allow Unknown Message Fields - Enabled FIXT",
@@ -905,7 +905,7 @@ func tcAllowUnknownMessageFieldsDisabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(41)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Allow Unknown Message Fields - Disabled",
@@ -927,7 +927,7 @@ func tcAllowUnknownMessageFieldsDisabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(41)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:             "Allow Unknown Message Fields - Disabled FIXT",
@@ -948,7 +948,7 @@ func tcCheckUserDefinedFieldsEnabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Check User Defined Fields - Enabled",
@@ -969,7 +969,7 @@ func tcCheckUserDefinedFieldsEnabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Check User Defined Fields - Enabled FIXT",
@@ -989,7 +989,7 @@ func tcCheckUserDefinedFieldsDisabled() validateTest {
 	builder := createFIX40NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Check User Defined Fields - Disabled",
@@ -1009,7 +1009,7 @@ func tcCheckUserDefinedFieldsDisabledFixT() validateTest {
 	builder := createFIX50SP2NewOrderSingle()
 	tag := Tag(9999)
 	builder.Body.SetField(tag, FIXString("hello"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Check User Defined Fields - Disabled FIXT",
@@ -1029,7 +1029,7 @@ func tcTagSpecifiedOutOfRequiredOrderDisabledHeader() validateTest {
 	tag := tagOnBehalfOfCompID
 	// Should be in header.
 	builder.Body.SetField(tag, FIXString("CWB"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Tag specified out of required order in Header - Disabled",
@@ -1050,7 +1050,7 @@ func tcTagSpecifiedOutOfRequiredOrderDisabledHeaderFixT() validateTest {
 	tag := tagOnBehalfOfCompID
 	// Should be in header.
 	builder.Body.SetField(tag, FIXString("CWB"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Tag specified out of required order in Header - Disabled FIXT",
@@ -1070,7 +1070,7 @@ func tcTagSpecifiedOutOfRequiredOrderDisabledTrailer() validateTest {
 	tag := tagSignature
 	// Should be in trailer.
 	builder.Body.SetField(tag, FIXString("SIG"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Tag specified out of required order in Trailer - Disabled",
@@ -1091,7 +1091,7 @@ func tcTagSpecifiedOutOfRequiredOrderDisabledTrailerFixT() validateTest {
 	tag := tagSignature
 	// Should be in trailer.
 	builder.Body.SetField(tag, FIXString("SIG"))
-	msgBytes := builder.build()
+	msgBytes := builder.Build()
 
 	return validateTest{
 		TestName:          "Tag specified out of required order in Trailer - Disabled FIXT",

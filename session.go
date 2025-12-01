@@ -230,7 +230,7 @@ func (s *Session) generateSequenceReset(beginSeqNo int, endSeqNo int, inReplyTo 
 
 	s.application.ToAdmin(sequenceReset, s.sessionID)
 
-	msgBytes := sequenceReset.build()
+	msgBytes := sequenceReset.Build()
 
 	s.EnqueueBytesAndSend(msgBytes)
 	s.log.OnEventf("Sent SequenceReset TO: %v", endSeqNo)
@@ -390,7 +390,7 @@ func (s *Session) prepMessageForSend(msg *Message, inReplyTo *Message) (msgBytes
 	}
 
 	// Message converted to bytes here.
-	msgBytes = msg.build()
+	msgBytes = msg.Build()
 	err = s.persist(seqNum, msgBytes)
 
 	return

@@ -63,7 +63,7 @@ func (s *QuickFIXSuite) FieldEquals(tag Tag, expectedValue interface{}, fieldMap
 }
 
 func (s *QuickFIXSuite) MessageEqualsBytes(expectedBytes []byte, msg *Message) {
-	actualBytes := msg.build()
+	actualBytes := msg.Build()
 	s.Equal(string(actualBytes), string(expectedBytes))
 }
 

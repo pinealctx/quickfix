@@ -122,7 +122,7 @@ func (s *MessageSuite) TestBuild() {
 	s.msg.Body.SetField(Tag(554), FIXString("secret"))
 
 	expectedBytes := []byte("8=FIX.4.49=4935=A52=20140615-19:49:56553=my_user554=secret10=072")
-	result := s.msg.build()
+	result := s.msg.Build()
 	s.True(bytes.Equal(expectedBytes, result), "Unexpected bytes, got %s", string(result))
 }
 
@@ -135,7 +135,7 @@ func (s *MessageSuite) TestReBuild() {
 	s.msg.Header.SetField(tagSendingTime, FIXString("20140615-19:49:56"))
 	s.msg.Header.SetField(tagPossDupFlag, FIXBoolean(true))
 
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 
 	expectedBytes := []byte("8=FIX.4.29=13135=D34=243=Y49=TW52=20140615-19:49:5656=ISLD122=20140515-19:49:56.65911=10021=140=154=155=TSLA60=00010101-00:00:00.00010=122")
 
@@ -160,7 +160,7 @@ func (s *MessageSuite) TestRebuildOneRepeatingGroupWithDictionary() {
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=16535=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:41453=1448=4501447=D452=28" +
@@ -181,7 +181,7 @@ func (s *MessageSuite) TestRebuildTwoRepeatingGroupsWithDictionary() {
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte("8=FIX.4.49=21035=D34=249=0100150=01001a52=20231231-20:19:4156=TEST347=UTF-81=1010040011=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:41354=6355=Public386=1336=NOPL453=1448=4501447=D452=2810=104")
 
 	// Then the bytes should have repeating groups properly ordered
@@ -202,7 +202,7 @@ func (s *MessageSuite) TestRebuildOneRepeatingGroupWithTwoMembersWithDictionary(
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=18735=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:41453=2448=4501447=D452=28448=4502447=D452=28" +
@@ -226,7 +226,7 @@ func (s *MessageSuite) TestRebuildTwoSequentialRepeatingGroupWithDictionary() {
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=21035=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:4178=279=acct179=acct2453=2448=4501447=D452=28448=4502447=D452=28" +
@@ -251,7 +251,7 @@ func (s *MessageSuite) TestRebuildNestedRepeatingGroupWithDictionary() {
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=17735=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:4178=179=acct1539=1524=nestedid80=100" +
@@ -276,7 +276,7 @@ func (s *MessageSuite) TestRebuildDoubleNestedRepeatingGroupWithDictionary() {
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=20235=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:4178=179=acct1539=1524=nestedid804=1545=doublenestedid80=100" +
@@ -301,7 +301,7 @@ func (s *MessageSuite) TestRebuildDoubleNestedThenAnotherRepeatingGroupWithDicti
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=24535=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:4178=179=acct1539=1524=nestedid804=1545=doublenestedid453=2448=4501447=D452=28448=4502447=D452=28" +
@@ -326,7 +326,7 @@ func (s *MessageSuite) TestRebuildDoubleNestedThenBodyTagThenAnotherRepeatingGro
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=25635=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:4178=179=acct1539=1524=nestedid804=1545=doublenestedid376=compid453=2448=4501447=D452=28448=4502447=D452=28" +
@@ -371,7 +371,7 @@ func (s *MessageSuite) TestRebuildDoubleNestedWithTwoMembersRepeatingGroupWithDi
 	s.Nil(ParseMessageWithDataDictionary(s.msg, rawMsg, dict, dict))
 
 	// And then rebuild the message bytes
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 	expectedBytes := []byte(
 		"8=FIX.4.49=40635=D34=249=0100150=01001a52=20231231-20:19:4156=TEST" +
 			"1=acct111=1397621=138=140=244=1254=155=SYMABC59=060=20231231-20:19:41" +
@@ -399,7 +399,7 @@ func (s *MessageSuite) TestReBuildWithRepeatingGroupForResend() {
 	s.msg.Header.SetField(tagPossDupFlag, FIXBoolean(true))
 
 	// When I rebuild the message
-	rebuildBytes := s.msg.build()
+	rebuildBytes := s.msg.Build()
 
 	// Then the repeating groups will not be in the correct order in the rebuilt message (note tags 447, 448, 452, 453)
 	expectedBytes := []byte("8=FIXT.1.19=19235=834=343=Y49=ISLD52=20240415-14:41:23.45656=TW122=20240415-03:43:17.9236=1.0011=114=1.0017=131=1.0032=1.0037=138=1.0039=254=155=1150=2151=0.00453=1448=xyzzy447=D452=110=018")
