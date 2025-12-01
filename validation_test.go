@@ -44,6 +44,9 @@ func TestValidate(t *testing.T) {
 		tcInvalidTagNumberTrailerFixT(),
 		tcTagSpecifiedWithoutAValue(),
 		tcTagSpecifiedWithoutAValueFixT(),
+		tcTagSpecifiedWithoutAValueValidateHasValues(),
+		tcTagSpecifiedWithoutAValueFixTValidateHasValues(),
+		tcTagSpecifiedWithoutAValueValidateHasValuesNoDataDictionary(),
 		tcInvalidMsgType(),
 		tcInvalidMsgTypeFixT(),
 		tcValueIsIncorrect(),
@@ -512,7 +515,67 @@ func tcTagSpecifiedWithoutAValue() validateTest {
 	}
 }
 
+func tcTagSpecifiedWithoutAValueValidateHasValues() validateTest {
+	dict, _ := datadictionary.Parse("spec/FIX40.xml")
+	settings := defaultValidatorSettings
+	settings.RejectInvalidMessage = false
+	settings.CheckFieldsHaveValues = true
+	validator := NewValidator(settings, dict, nil)
+	builder := createFIX40NewOrderSingle()
+
+	bogusTag := Tag(109)
+	builder.Body.SetField(bogusTag, FIXString(""))
+	msgBytes := builder.build()
+
+	return validateTest{
+		TestName:             "Tag SpecifiedWithoutAValue",
+		Validator:            validator,
+		MessageBytes:         msgBytes,
+		ExpectedRejectReason: rejectReasonTagSpecifiedWithoutAValue,
+		ExpectedRefTagID:     &bogusTag,
+	}
+}
+
+func tcTagSpecifiedWithoutAValueValidateHasValuesNoDataDictionary() validateTest {
+	settings := defaultValidatorSettings
+	settings.RejectInvalidMessage = false
+	settings.CheckFieldsHaveValues = true
+	validator := NewValidator(settings, nil, nil)
+	builder := createFIX40NewOrderSingle()
+
+	bogusTag := Tag(109)
+	builder.Body.SetField(bogusTag, FIXString(""))
+	msgBytes := builder.build()
+
+	return validateTest{
+		TestName:             "Tag SpecifiedWithoutAValue",
+		Validator:            validator,
+		MessageBytes:         msgBytes,
+		ExpectedRejectReason: rejectReasonTagSpecifiedWithoutAValue,
+		ExpectedRefTagID:     &bogusTag,
+	}
+}
+
 func tcTagSpecifiedWithoutAValueFixT() validateTest {
+	tDict, _ := datadictionary.Parse("spec/FIXT11.xml")
+	appDict, _ := datadictionary.Parse("spec/FIX50SP2.xml")
+	validator := NewValidator(defaultValidatorSettings, appDict, tDict)
+	builder := createFIX50SP2NewOrderSingle()
+
+	bogusTag := Tag(109)
+	builder.Body.SetField(bogusTag, FIXString(""))
+	msgBytes := builder.build()
+
+	return validateTest{
+		TestName:             "Tag SpecifiedWithoutAValue FIXT",
+		Validator:            validator,
+		MessageBytes:         msgBytes,
+		ExpectedRejectReason: rejectReasonTagSpecifiedWithoutAValue,
+		ExpectedRefTagID:     &bogusTag,
+	}
+}
+
+func tcTagSpecifiedWithoutAValueFixTValidateHasValues() validateTest {
 	tDict, _ := datadictionary.Parse("spec/FIXT11.xml")
 	appDict, _ := datadictionary.Parse("spec/FIX50SP2.xml")
 	validator := NewValidator(defaultValidatorSettings, appDict, tDict)

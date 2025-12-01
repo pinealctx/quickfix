@@ -1010,11 +1010,15 @@ func (s *SessionSuite) TestSeqNumResetTime() {
 	s.Session.ResetSeqTime = now
 	s.Session.EnableResetSeqTime = true
 
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
 	s.IncrNextSenderMsgSeqNum()
 	s.IncrNextTargetMsgSeqNum()
 
 	s.MockApp.On("ToAdmin")
 
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
 	s.IncrNextSenderMsgSeqNum()
 	s.IncrNextTargetMsgSeqNum()
 
@@ -1022,7 +1026,303 @@ func (s *SessionSuite) TestSeqNumResetTime() {
 
 	s.Session.CheckResetTime(s.Session, now)
 
-	s.NextSenderMsgSeqNum(2)
-	s.NextSenderMsgSeqNum(2)
+	s.NextSenderMsgSeqNum(3)
+	s.NextSenderMsgSeqNum(3)
 
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeDisconnected() {
+	s.Session.State = logonState{}
+	s.Session.ResetSeqTime = time.Now().UTC().Add(time.Second * 2)
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.onAdmin(stopReq{})
+	s.Disconnected()
+	s.Stopped()
+
+	// Wait for reset time to pass.
+	time.Sleep(time.Second * 3)
+
+	s.MockApp.On("ToAdmin")
+	// Disconnected so the seq numbers should not be reset.
+	s.Session.CheckResetTime(s.Session, time.Now().UTC())
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeAfterElapse() {
+	s.Session.State = logonState{}
+	before := time.Now().UTC()
+	resetTime := time.Now().UTC().Add(time.Second * 2)
+	after := resetTime.Add(time.Second * 1)
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(1)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeNotAfterDisconnect() {
+	s.Session.State = logonState{}
+	before := time.Now().UTC()
+	resetTime := before.Add(time.Second * 2)
+	after := resetTime.Add(time.Second * 1)
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.onAdmin(stopReq{})
+	s.Disconnected()
+	s.Stopped()
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeDisconnected_LocalTZ() {
+	s.Session.State = logonState{}
+	tz, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		s.T().Fatal(err)
+	}
+	s.Session.TimeZone = tz
+	s.Session.ResetSeqTime = time.Now().In(tz).Add(time.Second * 2)
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.onAdmin(stopReq{})
+	s.Disconnected()
+	s.Stopped()
+
+	// Wait for reset time to pass.
+	time.Sleep(time.Second * 3)
+
+	s.MockApp.On("ToAdmin")
+	// Disconnected so the seq numbers should not be reset.
+	s.Session.CheckResetTime(s.Session, time.Now().UTC())
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeAfterElapse_LocalTZ() {
+	s.Session.State = logonState{}
+	tz, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		s.T().Fatal(err)
+	}
+	s.Session.TimeZone = tz
+	before := time.Now().In(tz)
+	resetTime := before.Add(time.Second * 2)
+	after := resetTime.Add(time.Second * 1)
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(1)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeNotAfterDisconnect_LocalTZ() {
+	s.Session.State = logonState{}
+	tz, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		s.T().Fatal(err)
+	}
+	s.Session.TimeZone = tz
+	before := time.Now().In(tz)
+	resetTime := before.Add(time.Second * 2)
+	after := resetTime.Add(time.Second * 1)
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.onAdmin(stopReq{})
+	s.Disconnected()
+	s.Stopped()
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeAfterElapse_MultipleDaysLater() {
+	s.Session.State = logonState{}
+
+	// Example Dates:
+	// ResetTime = 2025-06-08 10:15:30
+	// Before 	 = 2025-07-10 10:15:29
+	// After 	 = 2025-07-10 10:15:32
+	resetTime := time.Now()
+	before := resetTime.AddDate(0, 1, 2).Add(time.Second * -1)
+	after := resetTime.AddDate(0, 1, 2).Add(time.Second * 2)
+
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(1)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimeAtExactTime() {
+	s.Session.State = logonState{}
+	resetTime := time.Now()
+	before := resetTime.Add(time.Second * -1)
+
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	// We are before the reset time, so we should not reset the seq numbers
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	// We check the reset time exactly at the configured time, so we reset
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, resetTime)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(1)
+}
+
+func (s *SessionSuite) TestSeqNumResetTimePreviousCheck() {
+	s.Session.State = logonState{}
+	resetTime := time.Now()
+	before := resetTime.Add(time.Second * -1)
+	after := resetTime.Add(time.Second * 1)
+
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	// We are before the reset time, so we should not reset the seq numbers
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	// We just checked the reset time at the configured time, so we do not reset the seq num for the next check
+	s.Session.lastCheckedResetSeqTime = resetTime
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+}
+
+func (s *SessionSuite) TestSeqNumResetTime_NanoSeconds() {
+	s.Session.State = logonState{}
+	resetTime := time.Now()
+	// Nanoseconds are not used in the resetSeqTime, but are referenced in the comparison of before/after
+	before := resetTime.Add(time.Nanosecond * -1)
+	after := resetTime.Add(time.Nanosecond * 1)
+
+	s.Session.ResetSeqTime = resetTime
+	s.Session.EnableResetSeqTime = true
+
+	s.NextSenderMsgSeqNum(1)
+	s.NextTargetMsgSeqNum(1)
+	s.IncrNextTargetMsgSeqNum()
+	s.IncrNextSenderMsgSeqNum()
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.MockApp.On("ToAdmin")
+	s.Session.CheckResetTime(s.Session, before)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(2)
+
+	s.Session.lastCheckedResetSeqTime = before
+	s.Session.CheckResetTime(s.Session, after)
+	s.NextSenderMsgSeqNum(2)
+	s.NextTargetMsgSeqNum(1)
 }

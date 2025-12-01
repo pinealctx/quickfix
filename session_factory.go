@@ -99,6 +99,12 @@ func (f sessionFactory) newSession(
 		}
 	}
 
+	if settings.HasSetting(config.ValidateFieldsHaveValues) {
+		if validatorSettings.CheckFieldsHaveValues, err = settings.BoolSetting(config.ValidateFieldsHaveValues); err != nil {
+			return
+		}
+	}
+
 	if settings.HasSetting(config.RejectInvalidMessage) {
 		if validatorSettings.RejectInvalidMessage, err = settings.BoolSetting(config.RejectInvalidMessage); err != nil {
 			return
@@ -117,6 +123,8 @@ func (f sessionFactory) newSession(
 		}
 	}
 
+	// Always use a default message validator without data dictionaries
+	s.Validator = NewValidator(validatorSettings, nil, nil)
 	if sessionID.IsFIXT() {
 		if s.DefaultApplVerID, err = settings.Setting(config.DefaultApplVerID); err != nil {
 			return
@@ -421,6 +429,18 @@ func (f sessionFactory) newSession(
 		}
 
 		s.DisableMessagePersist = !persistMessages
+	}
+
+	if settings.HasSetting(config.InChanCapacity) {
+		if s.InChanCapacity, err = settings.IntSetting(config.InChanCapacity); err != nil {
+			return
+		} else if s.InChanCapacity < 0 {
+			err = IncorrectFormatForSetting{Setting: config.InChanCapacity, Value: []byte(strconv.Itoa(s.InChanCapacity))}
+			return
+		}
+	} else {
+		// Default to 1 buffered message per channel
+		s.InChanCapacity = 1
 	}
 
 	if f.BuildInitiators {
