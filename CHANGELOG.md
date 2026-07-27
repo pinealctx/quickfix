@@ -1,3 +1,17 @@
+## Pinealctx 1.1.0 (July 27, 2026)
+
+This release realigns the independently maintained fork with upstream
+QuickFIX/Go `main` at `4bd79e32` and intentionally removes the legacy exported
+Session implementation, `Message.Build`, application-specific `generate-pb`
+tool, and unused conversion helpers.
+
+### FEATURES
+* Add a strict, typed JSON settings package with boolean/integer string compatibility and custom-setting support.
+
+### BUG FIXES
+* Honor `ValidateFieldsHaveValues=N` when a data dictionary is enabled.
+* Make the test suite portable across Windows filesystems, absent MongoDB integration settings, and equal clock ticks.
+
 ## 0.9.10 (August 8, 2025)
 
 ### BUG FIXES
