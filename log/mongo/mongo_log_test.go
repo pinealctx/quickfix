@@ -110,6 +110,10 @@ func (suite *MongoLogTestSuite) TestMongoLog() {
 }
 
 func (suite *MongoLogTestSuite) TearDownTest() {
+	if suite.log == nil {
+		return
+	}
+
 	entry := generateEntry(&suite.log.sessionID)
 	_, err := suite.log.db.Database(suite.log.mongoDatabase).Collection(suite.log.messagesLogCollection).DeleteMany(context.Background(), entry)
 	require.Nil(suite.T(), err)

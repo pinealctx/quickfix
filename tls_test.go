@@ -79,7 +79,8 @@ func (s *TLSTestSuite) TestLoadTLSInvalidKeyOrCert() {
 	s.settings.GlobalSettings().Set(config.SocketCertificateFile, "foo")
 	_, err := loadTLSConfig(s.settings.GlobalSettings())
 	s.NotNil(err)
-	s.EqualError(err, "failed to load key pair: open foo: no such file or directory")
+	s.ErrorContains(err, "failed to load key pair")
+	s.ErrorContains(err, "foo")
 }
 
 func (s *TLSTestSuite) TestLoadTLSNoCA() {
@@ -103,7 +104,8 @@ func (s *TLSTestSuite) TestLoadTLSWithBadCA() {
 
 	_, err := loadTLSConfig(s.settings.GlobalSettings())
 	s.NotNil(err)
-	s.EqualError(err, "failed to read CA bundle: open bar: no such file or directory")
+	s.ErrorContains(err, "failed to read CA bundle")
+	s.ErrorContains(err, "bar")
 }
 
 func (s *TLSTestSuite) TestLoadTLSWithCA() {

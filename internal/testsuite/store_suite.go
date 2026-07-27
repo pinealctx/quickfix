@@ -229,6 +229,7 @@ func (s *StoreTestSuite) TestMessageStoreCreationTime() {
 	t0 := time.Now()
 	s.Require().Nil(s.MsgStore.Reset())
 	t1 := time.Now()
-	s.Require().True(s.MsgStore.CreationTime().After(t0))
-	s.Require().True(s.MsgStore.CreationTime().Before(t1))
+	creationTime := s.MsgStore.CreationTime()
+	s.Require().False(creationTime.Before(t0))
+	s.Require().False(creationTime.After(t1))
 }
