@@ -25,11 +25,11 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/quickfixgo/quickfix"
-	"github.com/quickfixgo/quickfix/log/file"
-	"github.com/quickfixgo/quickfix/log/mongo"
-	"github.com/quickfixgo/quickfix/log/screen"
-	"github.com/quickfixgo/quickfix/log/sql"
+	"github.com/pinealctx/quickfix"
+	"github.com/pinealctx/quickfix/log/file"
+	"github.com/pinealctx/quickfix/log/mongo"
+	"github.com/pinealctx/quickfix/log/screen"
+	"github.com/pinealctx/quickfix/log/sql"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

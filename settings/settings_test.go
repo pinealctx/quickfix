@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/quickfixgo/quickfix"
+	"github.com/pinealctx/quickfix"
 )
 
 func TestJSONSettingsToQuickFIX(t *testing.T) {

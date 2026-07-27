@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/quickfixgo/quickfix"
+	"github.com/pinealctx/quickfix"
 )
 
 func createFilenamePrefix(s quickfix.SessionID) string {

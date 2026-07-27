@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/quickfixgo/quickfix/internal"
+	"github.com/pinealctx/quickfix/internal"
 )
 
 type stateMachine struct {

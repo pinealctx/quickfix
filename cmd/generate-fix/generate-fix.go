@@ -12,8 +12,8 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/quickfixgo/quickfix/cmd/generate-fix/internal"
-	"github.com/quickfixgo/quickfix/datadictionary"
+	"github.com/pinealctx/quickfix/cmd/generate-fix/internal"
+	"github.com/pinealctx/quickfix/datadictionary"
 )
 
 var (

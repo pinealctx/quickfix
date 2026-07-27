@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/quickfixgo/quickfix"
+	"github.com/pinealctx/quickfix"
 )
 
 // ConnectionType identifies whether a session accepts or initiates FIX

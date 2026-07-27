@@ -4,7 +4,7 @@ This repository is independently maintained by pinealctx while regularly
 synchronizing with upstream QuickFIX/Go. See [FORK.md](FORK.md) for the small
 set of maintained differences and the upstream synchronization policy.
 
-[![Build Status](https://github.com/quickfixgo/quickfix/workflows/CI/badge.svg)](https://github.com/quickfixgo/quickfix/actions) [![GoDoc](https://godoc.org/github.com/quickfixgo/quickfix?status.png)](https://godoc.org/github.com/quickfixgo/quickfix) [![Go Report Card](https://goreportcard.com/badge/github.com/quickfixgo/quickfix)](https://goreportcard.com/report/github.com/quickfixgo/quickfix)
+[![Build Status](https://github.com/pinealctx/quickfix/workflows/CI/badge.svg)](https://github.com/pinealctx/quickfix/actions) [![GoDoc](https://godoc.org/github.com/pinealctx/quickfix?status.png)](https://godoc.org/github.com/pinealctx/quickfix) [![Go Report Card](https://goreportcard.com/badge/github.com/pinealctx/quickfix)](https://goreportcard.com/report/github.com/pinealctx/quickfix)
 
 Open Source [FIX Protocol](http://www.fixprotocol.org/) library implemented in Go
 
@@ -16,7 +16,7 @@ See v0.9.0 release notes [here](https://github.com/quickfixgo/quickfix/releases/
 <p>QuickFIX/Go is a <a href="https://www.fixtrading.org/">FIX Protocol Community</a> implementation for the <a href="https://golang.org">Go programming language</a>.</p> 
 
 <ul>
-  <li>100% free and open source with a liberal <a href="https://github.com/quickfixgo/quickfix/blob/master/LICENSE.txt">license</a></li>
+  <li>100% free and open source with a liberal <a href="LICENSE">license</a></li>
   <li>Supports FIX versions 4.0 - 5.0SP2</li>
   <li>Runs on any hardware and operating system supported by Go (1.21+ required)</li>
   <li>Spec driven run-time message validation</li>
@@ -39,7 +39,7 @@ See v0.9.0 release notes [here](https://github.com/quickfixgo/quickfix/releases/
 With [Go module](https://github.com/golang/go/wiki/Modules) support, simply add the following import
 
 ```
-import "github.com/quickfixgo/quickfix"
+import "github.com/pinealctx/quickfix"
 ```
 
 to your code, and then `go [build|run|test]` will automatically fetch the necessary dependencies.
@@ -47,13 +47,13 @@ to your code, and then `go [build|run|test]` will automatically fetch the necess
 Otherwise, run the following Go command to install the `quickfix` package:
 
 ```sh
-go get -u github.com/quickfixgo/quickfix
+go get -u github.com/pinealctx/quickfix
 ```
 
 ## Getting Started
 
 * [QuickFIX User Manual](https://quickfixengine.org/go/documentation/)
-* [Go API Documentation](https://godoc.org/github.com/quickfixgo/quickfix)
+* [Go API Documentation](https://godoc.org/github.com/pinealctx/quickfix)
 * See [examples](https://github.com/quickfixgo/examples) for some simple examples of using QuickFIX/Go.
 
 ## FIX Messaging Model
@@ -74,14 +74,18 @@ QuickFIX/Go maintains separate packages for tags, fields, enums, messages, and m
 * [FIX 5.0 SP2](https://github.com/quickfixgo/fix50sp2)
 * [FIXT 1.1](https://github.com/quickfixgo/fixt11)
 
-For most FIX applications, these generated resources are sufficient. Custom FIX applications may generate source specific to the FIX spec of that application using the `generate-fix` tool included with QuickFIX/Go.
+The upstream generated modules import `github.com/quickfixgo/quickfix` and
+therefore use different Go types from this fork. They cannot be mixed directly
+with `github.com/pinealctx/quickfix`. Applications using this fork should
+generate their message packages with the `generate-fix` tool included here and
+set `-pkg-root` to the application's generated-package import root.
 
 Following installation, `generate-fix` is installed to `$GOPATH/bin/generate-fix`. Run `$GOPATH/bin/generate-fix --help` for usage instructions.
 
 ## General Support
 <h3>Github Discussions</h3>
 
-<p>Our <a href="https://github.com/quickfixgo/quickfix/discussions/categories/q-a">Github Discussions Board</a> is free, public, and easily searchable. It’s the preferred method of user support from the QuickFIX/Go team.
+<p>Our <a href="https://github.com/pinealctx/quickfix/discussions/categories/q-a">Github Discussions Board</a> is free, public, and easily searchable. It’s the preferred method of user support from the QuickFIX/Go team.
 
 <p>Please provide as much detail as you can when asking a question, and include relevant configurations and code snippets.</p>
 
@@ -95,7 +99,7 @@ Following installation, `generate-fix` is installed to `$GOPATH/bin/generate-fix
 
 <p><strong>Note:</strong> Please do not submit questions or help requests to the issues list. It is for bugs and issues. If you need help, please use the Discussions board as described above and you’ll be able to send your question to the entire community.</p>
 
-<p><a href="https://github.com/quickfixgo/quickfix/issues">GitHub Issues</a></p>
+<p><a href="https://github.com/pinealctx/quickfix/issues">GitHub Issues</a></p>
 
 <p>Please provide sample code, logs, and a description of the problem when the issue is submitted.</p>
 
@@ -128,7 +132,7 @@ If this exits with exit status 0, then everything is working!
 
 ### Generated Code
 
-Generated code from the FIX40-FIX50SP2 specs are available as separate repos under the [QuickFIX/Go organization](https://github.com/quickfixgo).  The source specifications for this generated code is located in `spec/`.  Generated code can be identified by the `.generated.go` suffix.  Any changes to generated code must be captured by changes to source in `cmd/generate-fix`.  After making changes to the code generator source, run the following to re-generate the source
+Upstream generated code from the FIX40-FIX50SP2 specs is available as separate repos under the [QuickFIX/Go organization](https://github.com/quickfixgo), but it is tied to the upstream module path. The source specifications are located in `spec/`. Generated code can be identified by the `.generated.go` suffix. Any changes to generated code must be captured by changes to source in `cmd/generate-fix`. After making changes to the code generator source, run the following to re-generate the source
 
 ```sh
 make generate
@@ -157,4 +161,4 @@ make accept
 
 ## Licensing
 
-This software is available under the QuickFIX Software License. Please see the [LICENSE.txt](https://github.com/quickfixgo/quickfix/blob/main/LICENSE.txt) for the terms specified by the QuickFIX Software License.
+This software is available under the QuickFIX Software License. Please see the [LICENSE](LICENSE) for the terms specified by the QuickFIX Software License.

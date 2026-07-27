@@ -18,8 +18,8 @@ package memory
 import (
 	"testing"
 
-	"github.com/quickfixgo/quickfix"
-	"github.com/quickfixgo/quickfix/internal/testsuite"
+	"github.com/pinealctx/quickfix"
+	"github.com/pinealctx/quickfix/internal/testsuite"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

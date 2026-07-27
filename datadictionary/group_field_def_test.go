@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/quickfixgo/quickfix/datadictionary"
+	"github.com/pinealctx/quickfix/datadictionary"
 )
 
 func TestNewGroupField(t *testing.T) {

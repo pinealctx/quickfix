@@ -1,4 +1,4 @@
-module github.com/quickfixgo/quickfix
+module github.com/pinealctx/quickfix
 
 go 1.23
 

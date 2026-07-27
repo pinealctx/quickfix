@@ -5,6 +5,10 @@ QuickFIX/Go `main` at `4bd79e32` and intentionally removes the legacy exported
 Session implementation, `Message.Build`, application-specific `generate-pb`
 tool, and unused conversion helpers.
 
+### COMPATIBILITY
+* Publish the fork as `github.com/pinealctx/quickfix`; consumers should update imports and remove Go module `replace` directives.
+* Regenerate FIX message packages with this fork because upstream generated packages retain the distinct `github.com/quickfixgo/quickfix` type identity.
+
 ### FEATURES
 * Add a strict, typed JSON settings package with boolean/integer string compatibility and custom-setting support.
 
@@ -114,7 +118,7 @@ The message store types external to a quickfix-go application have been refactor
 
 MONGO
 ```go
-import "github.com/quickfixgo/quickfix"
+import "github.com/pinealctx/quickfix"
 
 ...
 acceptor, err = quickfix.NewAcceptor(app, quickfix.NewMongoStoreFactory(appSettings), appSettings, fileLogFactory)
@@ -122,8 +126,8 @@ acceptor, err = quickfix.NewAcceptor(app, quickfix.NewMongoStoreFactory(appSetti
 becomes 
 ```go
 import (
-  "github.com/quickfixgo/quickfix"
-  "github.com/quickfixgo/quickfix/store/mongo"
+  "github.com/pinealctx/quickfix"
+  "github.com/pinealctx/quickfix/store/mongo"
 )
 
 ...
@@ -132,7 +136,7 @@ acceptor, err = quickfix.NewAcceptor(app, mongo.NewStoreFactory(appSettings), ap
 
 FILE
 ```go
-import "github.com/quickfixgo/quickfix"
+import "github.com/pinealctx/quickfix"
 
 ...
 acceptor, err = quickfix.NewAcceptor(app, quickfix.NewFileStoreFactory(appSettings), appSettings, fileLogFactory)
@@ -140,8 +144,8 @@ acceptor, err = quickfix.NewAcceptor(app, quickfix.NewFileStoreFactory(appSettin
 becomes 
 ```go
 import (
-  "github.com/quickfixgo/quickfix"
-  "github.com/quickfixgo/quickfix/store/file"
+  "github.com/pinealctx/quickfix"
+  "github.com/pinealctx/quickfix/store/file"
 )
 
 ...
@@ -151,7 +155,7 @@ acceptor, err = quickfix.NewAcceptor(app, file.NewStoreFactory(appSettings), app
 SQL
 
 ```go
-import "github.com/quickfixgo/quickfix"
+import "github.com/pinealctx/quickfix"
 
 ...
 acceptor, err = quickfix.NewAcceptor(app, quickfix.NewSQLStoreFactory(appSettings), appSettings, fileLogFactory)
@@ -159,8 +163,8 @@ acceptor, err = quickfix.NewAcceptor(app, quickfix.NewSQLStoreFactory(appSetting
 becomes 
 ```go
 import (
-  "github.com/quickfixgo/quickfix"
-  "github.com/quickfixgo/quickfix/store/sql"
+  "github.com/pinealctx/quickfix"
+  "github.com/pinealctx/quickfix/store/sql"
 )
 
 ...
