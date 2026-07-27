@@ -372,7 +372,7 @@ func validateField(d *datadictionary.DataDictionary,
 	_ datadictionary.TagSet,
 	field TagValue,
 ) MessageRejectError {
-	if len(field.value) == 0 {
+	if settings.CheckFieldsHaveValues && len(field.value) == 0 {
 		return TagSpecifiedWithoutAValue(field.tag)
 	}
 
