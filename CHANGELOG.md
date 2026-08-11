@@ -1,3 +1,13 @@
+## Pinealctx 1.1.1 (August 11, 2026)
+
+This release synchronizes the independently maintained fork with upstream
+QuickFIX/Go `main` at `12a98877` while retaining the pinealctx module path and
+maintained fork behavior.
+
+### BUG FIXES
+* Validate each token in space-delimited multi-value enum fields.
+* Prevent a duplicate `10=` checksum when resending a message whose body ends in a repeating group.
+
 ## Pinealctx 1.1.0 (July 27, 2026)
 
 This release realigns the independently maintained fork with upstream
