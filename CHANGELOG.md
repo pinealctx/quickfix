@@ -1,3 +1,9 @@
+## Pinealctx 1.1.2 (October 22, 2026)
+
+### BUG FIXES
+* Preserve body fields and sibling groups after nested repeating groups when parsing with a data dictionary.
+* Return a parse error for truncated repeating groups instead of overrunning the field buffer.
+
 ## Pinealctx 1.1.1 (August 11, 2026)
 
 This release synchronizes the independently maintained fork with upstream
