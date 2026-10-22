@@ -81,3 +81,52 @@ func TestNestedGroupUnterminatedInputReturnsError(t *testing.T) {
 		})
 	}
 }
+
+func TestNestedGroupsResumeAtSiblingGroup(t *testing.T) {
+	dictionary, err := datadictionary.Parse("spec/FIX44.xml")
+	require.NoError(t, err)
+	for _, tc := range []struct{ name, prefix string }{
+		{"sibling child after nested child", ""},
+		{"new root after nested group", "555=1|600=leg|539=1|524=nested|804=1|545=leg-sub|"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wire := groupBoundaryWire("AE", tc.prefix+"552=1|54=1|37=order|453=1|448=party|447=D|452=3|802=1|523=sub|576=1|577=0|17=execution|")
+			message := NewMessage()
+			require.NoError(t, ParseMessageWithDataDictionary(message, bytes.NewBuffer(wire), dictionary, dictionary))
+			sides := NewRepeatingGroup(552, GroupTemplate{GroupElement(54), GroupElement(37), NewRepeatingGroup(453, GroupTemplate{GroupElement(448), GroupElement(447), GroupElement(452), NewRepeatingGroup(802, GroupTemplate{GroupElement(523)})}), NewRepeatingGroup(576, GroupTemplate{GroupElement(577)})})
+			require.NoError(t, message.Body.GetGroup(sides))
+			require.Equal(t, 1, sides.Len())
+			clearing := NewRepeatingGroup(576, GroupTemplate{GroupElement(577)})
+			require.NoError(t, sides.Get(0).GetGroup(clearing))
+			require.Equal(t, 1, clearing.Len())
+			value, err := clearing.Get(0).GetString(577)
+			require.NoError(t, err)
+			require.Equal(t, "0", value)
+			require.False(t, message.Body.Has(577))
+			execution, err := message.Body.GetString(17)
+			require.NoError(t, err)
+			require.Equal(t, "execution", execution)
+			reparsed := NewMessage()
+			require.NoError(t, ParseMessageWithDataDictionary(reparsed, bytes.NewBuffer(message.build()), dictionary, dictionary))
+			sides.Reset()
+			require.NoError(t, reparsed.Body.GetGroup(sides))
+			require.Equal(t, 1, sides.Len())
+		})
+	}
+}
+
+func FuzzDictionaryGroupParsing(f *testing.F) {
+	dictionary, err := datadictionary.Parse("spec/FIX44.xml")
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add([]byte("8=FIX.4.4\x019=20\x0135=n\x01212=999999\x01213=x\x0110=000\x01"))
+	f.Add(groupBoundaryWire("8", "453=1|448=party|447=D|452=3|802=1|523=sub|17=execution|"))
+	f.Add(groupBoundaryWire("AE", "555=1|600=leg|539=1|524=nested|804=1|545=sub|552=1|54=1|37=order|17=execution|"))
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 65536 {
+			t.Skip()
+		}
+		_ = ParseMessageWithDataDictionary(NewMessage(), bytes.NewBuffer(raw), dictionary, dictionary)
+	})
+}

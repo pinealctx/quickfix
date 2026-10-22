@@ -198,6 +198,10 @@ func doParsing(mp *msgParser) (err error) {
 	if fieldCount == 0 {
 		return parseError{OrigError: fmt.Sprintf("No Fields detected in %s", string(mp.rawBytes))}
 	}
+	// A message needs the three leading header fields and a checksum.
+	if fieldCount < 4 {
+		return parseError{OrigError: "incomplete message header or trailer"}
+	}
 	if cap(mp.msg.fields) < fieldCount {
 		mp.msg.fields = make([]TagValue, fieldCount)
 	} else {
@@ -235,6 +239,9 @@ func doParsing(mp *msgParser) (err error) {
 	mp.foundBody = false
 	mp.foundTrailer = false
 	for {
+		if mp.fieldIndex >= len(mp.msg.fields) {
+			return parseError{OrigError: "unterminated message"}
+		}
 		mp.parsedFieldBytes = &mp.msg.fields[mp.fieldIndex]
 		if xmlDataLen > 0 {
 			mp.rawBytes, err = extractXMLDataField(mp.parsedFieldBytes, mp.rawBytes, xmlDataLen)
@@ -560,6 +567,9 @@ func extractXMLDataField(parsedFieldBytes *TagValue, buffer []byte, dataLen int)
 		err = parseError{OrigError: "extractField: No Trailing Delim in " + string(buffer)}
 		remBytes = buffer
 		return
+	}
+	if dataLen < 0 || dataLen > len(buffer)-endIndex-2 {
+		return buffer, parseError{OrigError: "incomplete XML data field"}
 	}
 	endIndex += dataLen + 1
 

@@ -19,6 +19,19 @@ Fork-specific changes should remain focused, documented, and covered by tests.
 Business-specific generators, logging adapters, credentials, and application
 wrappers belong in their consuming projects.
 
+## Reviewed upstream baseline
+
+The fork includes upstream v0.9.12, commit `eff945dd59a41caeaed20f71916f08d37e0fda99`.
+Upstream PR #756 fixes body fields after nested groups, a defect inherited from
+upstream commit `6889cf10` (May 2024). The fork also resolves the ancestor before
+classifying the next field, resets the path when switching root groups, and
+returns errors for malformed/truncated groups, short messages, empty integer
+fields, and truncated XML payloads. These differences are covered by
+`message_group_boundary_test.go`; the unmodified v0.9.12 parser fails its nested
+sibling-group and truncated-input cases. The remaining parser differences do not
+alter session sequencing, transport writes, FileStore persistence, or resend
+scheduling.
+
 ## Synchronizing upstream
 
 The upstream remote is named `github.com` in the maintainer checkout. Fetch it
