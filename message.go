@@ -254,7 +254,9 @@ func doParsing(mp *msgParser) (err error) {
 			mp.msg.Trailer.add(mp.msg.fields[mp.fieldIndex : mp.fieldIndex+1])
 			mp.foundTrailer = true
 		case isNumInGroupField(mp.msg, []Tag{mp.parsedFieldBytes.tag}, mp.appDataDictionary):
-			parseGroup(mp, []Tag{mp.parsedFieldBytes.tag})
+			if err = parseGroup(mp, []Tag{mp.parsedFieldBytes.tag}); err != nil {
+				return err
+			}
 		default:
 			mp.foundBody = true
 			mp.trailerBytes = mp.rawBytes
@@ -305,17 +307,32 @@ func doParsing(mp *msgParser) (err error) {
 }
 
 // parseGroup iterates through a repeating group to maintain correct order of those fields.
-func parseGroup(mp *msgParser, tags []Tag) {
+func parseGroup(mp *msgParser, tags []Tag) error {
 	mp.foundBody = true
 	dm := mp.msg.fields[mp.fieldIndex : mp.fieldIndex+1]
 	fields := getGroupFields(mp.msg, tags, mp.appDataDictionary)
 
 	for {
 		mp.fieldIndex++
+		if mp.fieldIndex >= len(mp.msg.fields) {
+			return parseError{OrigError: "unterminated repeating group"}
+		}
 		mp.parsedFieldBytes = &mp.msg.fields[mp.fieldIndex]
 		preExtractBytes := mp.rawBytes
-		mp.rawBytes, _ = extractField(mp.parsedFieldBytes, mp.rawBytes)
+		var err error
+		mp.rawBytes, err = extractField(mp.parsedFieldBytes, mp.rawBytes)
+		if err != nil {
+			return err
+		}
 		mp.trailerBytes = mp.rawBytes
+
+		// Leave nested groups until the field belongs to the current parent.
+		// A parent existing in the dictionary does not make an arbitrary body
+		// field a member of that parent.
+		for len(tags) > 1 && !isGroupMember(mp.parsedFieldBytes.tag, fields) {
+			tags = tags[:len(tags)-1]
+			fields = getGroupFields(mp.msg, tags, mp.appDataDictionary)
+		}
 
 		// Is this field a member for the group.
 		if isGroupMember(mp.parsedFieldBytes.tag, fields) {
@@ -352,18 +369,8 @@ func parseGroup(mp *msgParser, tags []Tag) {
 				mp.msg.Body.add(dm)
 				// Cycle again with the new group.
 				dm = mp.msg.fields[mp.fieldIndex : mp.fieldIndex+1]
-				fields = getGroupFields(mp.msg, searchTags, mp.appDataDictionary)
-				continue
-			}
-			if len(tags) > 1 {
-				searchTags = tags[:len(tags)-1]
-			}
-			// Did this tag occur after a nested group and belongs to the parent group.
-			if isNumInGroupField(mp.msg, searchTags, mp.appDataDictionary) {
-				// Add the field member to the group.
-				dm = append(dm, *mp.parsedFieldBytes)
-				// Continue parsing the parent group.
-				fields = getGroupFields(mp.msg, searchTags, mp.appDataDictionary)
+				tags = searchTags
+				fields = getGroupFields(mp.msg, tags, mp.appDataDictionary)
 				continue
 			}
 			// Add the repeating group.
@@ -374,6 +381,7 @@ func parseGroup(mp *msgParser, tags []Tag) {
 			break
 		}
 	}
+	return nil
 }
 
 // isNumInGroupField evaluates if this tag is the start of a repeating group.

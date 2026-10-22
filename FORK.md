@@ -12,6 +12,8 @@ a Go module `replace` directive. Go package names remain `quickfix`.
 - `settings`: a strict, typed JSON configuration package that converts to the
   engine's native `quickfix.Settings` type.
 - `ValidateFieldsHaveValues=N` is honored during data-dictionary validation.
+- Nested repeating groups return to their enclosing group or message body without
+  consuming unrelated fields; truncated group input returns a parse error.
 
 Fork-specific changes should remain focused, documented, and covered by tests.
 Business-specific generators, logging adapters, credentials, and application
