@@ -50,3 +50,9 @@ func BenchmarkFIXInt_Read(b *testing.B) {
 		_ = field.Read(intBytes)
 	}
 }
+
+func TestFIXInt_ReadEmpty(t *testing.T) {
+	field := FIXInt(7)
+	assert.NotPanics(t, func() { assert.Error(t, field.Read(nil)) })
+	assert.Equal(t, FIXInt(7), field)
+}

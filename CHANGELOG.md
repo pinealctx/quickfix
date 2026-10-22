@@ -1,3 +1,18 @@
+## Pinealctx 1.2.0 (October 23, 2026)
+
+Synchronize upstream QuickFIX/Go v0.9.12 (`eff945dd`) while retaining the fork module path and tested parser boundary safeguards.
+
+### FEATURES
+* Add `RepeatingGroup.Reset()` for explicit reuse of group instances.
+
+### BUG FIXES
+* Avoid recursive read locking in `FieldMap.GetTime` when a writer is waiting.
+* Forward variadic arguments correctly in the composite logger.
+* Restore the upstream business reject reason for conditionally missing fields.
+* Correct dictionary path diagnostics and remove a redundant parser buffer reset.
+* Reject short/truncated messages, empty integer fields, and incomplete XML data without panicking.
+* Include upstream nested-group regression coverage and preserve the fork's additional ancestor/sibling-group and malformed-input protections.
+
 ## Pinealctx 1.1.2 (October 22, 2026)
 
 ### BUG FIXES
@@ -31,6 +46,31 @@ tool, and unused conversion helpers.
 ### BUG FIXES
 * Honor `ValidateFieldsHaveValues=N` when a data dictionary is enabled.
 * Make the test suite portable across Windows filesystems, absent MongoDB integration settings, and equal clock ticks.
+## 0.9.12 (September 30, 2026)
+
+### BUG FIXES
+* Stop misattributing body fields that follow a nested repeating group [#756](https://github.com/quickfixgo/quickfix/pull/756)
+* Forward OnEventf format arguments to the wrapped logs in the composite log [#779](https://github.com/quickfixgo/quickfix/pull/779)
+* Correct the datadictionary parse error message in SessionFactory [#780](https://github.com/quickfixgo/quickfix/pull/780)
+
+## 0.9.11 (September 14, 2026)
+
+### FEATURES
+* Adds `SetNewListenerCallback` to the Acceptor to allow custom `net.Listener` creation [#729](https://github.com/quickfixgo/quickfix/pull/729)
+* Adds config option for ValidateFieldsHaveValues [#734](https://github.com/quickfixgo/quickfix/pull/734)
+* Adds `Reset()` method to RepeatingGroup [#775](https://github.com/quickfixgo/quickfix/pull/775)
+
+### ENHANCEMENTS
+* Make both initiator and acceptor fixIn channels buffered [#736](https://github.com/quickfixgo/quickfix/pull/736)
+* Update devcontainer Go image to 1.25 [#748](https://github.com/quickfixgo/quickfix/pull/748)
+* Remove redundant buffer Reset when reading messages [#777](https://github.com/quickfixgo/quickfix/pull/777)
+
+### BUG FIXES
+* Resent messages with repeating groups on sessions without a data dictionary no longer produce an incorrect length and checksum [#743](https://github.com/quickfixgo/quickfix/pull/743)
+* Validate each token of multi-value enum fields [#766](https://github.com/quickfixgo/quickfix/pull/766)
+* Fix duplicate 10= checksum when resending a message ending in a repeating group [#767](https://github.com/quickfixgo/quickfix/pull/767)
+* Resend Requests should not interleave with live traffic [#768](https://github.com/quickfixgo/quickfix/pull/768)
+* Fix potential deadlock in FieldMap.GetTime [#776](https://github.com/quickfixgo/quickfix/pull/776)
 
 ## 0.9.10 (August 8, 2025)
 
