@@ -30,6 +30,14 @@ type Log interface {
 	OnEventf(string, ...interface{})
 }
 
+// OutgoingWriteObserver 是会话日志可选实现的写入诊断接口。
+// 返回的回调在本次连接 Write 返回后调用，参数保留其字节数和错误。
+// TLS 会话观测的是 TLS Conn.Write；成功不表示对端已经接收或处理消息。
+// 实现必须快速返回，不能修改或保留 raw，也不能改变发送或重试行为。
+type OutgoingWriteObserver interface {
+	OnOutgoingWrite(raw []byte) func(written int, err error)
+}
+
 // The LogFactory interface creates global and session specific Log instances.
 type LogFactory interface {
 	// Create global log.

@@ -18,13 +18,22 @@ package quickfix
 import "io"
 
 func writeLoop(connection io.Writer, messageOut chan []byte, log Log) {
+	observer, _ := log.(OutgoingWriteObserver)
 	for {
 		msg, ok := <-messageOut
 		if !ok {
 			return
 		}
 
-		if _, err := connection.Write(msg); err != nil {
+		var finished func(int, error)
+		if observer != nil {
+			finished = observer.OnOutgoingWrite(msg)
+		}
+		written, err := connection.Write(msg)
+		if finished != nil {
+			finished(written, err)
+		}
+		if err != nil {
 			log.OnEvent(err.Error())
 		}
 	}

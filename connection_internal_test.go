@@ -17,9 +17,140 @@ package quickfix
 
 import (
 	"bytes"
+	"crypto/tls"
+	"errors"
+	"io"
+	"net"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestWriteObserverWithTCPAndTLS(t *testing.T) {
+	certificateServer := httptest.NewTLSServer(nil)
+	certificate := certificateServer.TLS.Certificates[0]
+	certificateServer.Close()
+	for _, encrypted := range []bool{false, true} {
+		t.Run(map[bool]string{false: "TCP", true: "TLS"}[encrypted], func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if encrypted {
+				listener = tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12})
+			}
+			defer listener.Close()
+			payload := []byte("8=FIX.4.4\x019=5\x0135=D\x0110=000\x01")
+			read := make(chan error, 1)
+			go func() {
+				peer, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					read <- acceptErr
+					return
+				}
+				defer peer.Close()
+				_ = peer.SetDeadline(time.Now().Add(5 * time.Second))
+				buf := make([]byte, len(payload))
+				_, readErr := io.ReadFull(peer, buf)
+				if readErr == nil && !bytes.Equal(buf, payload) {
+					readErr = errors.New("write changed bytes")
+				}
+				read <- readErr
+			}()
+			var connection net.Conn
+			dialer := &net.Dialer{Timeout: 5 * time.Second}
+			if encrypted {
+				connection, err = tls.DialWithDialer(dialer, "tcp", listener.Addr().String(), &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12})
+			} else {
+				connection, err = dialer.Dial("tcp", listener.Addr().String())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer connection.Close()
+			_ = connection.SetDeadline(time.Now().Add(5 * time.Second))
+			observed := false
+			log := writeObserverLog{observe: func(raw []byte) func(int, error) {
+				return func(n int, err error) { observed = n == len(payload) && err == nil }
+			}}
+			messages := make(chan []byte, 1)
+			messages <- payload
+			close(messages)
+			writeLoop(connection, messages, log)
+			if !observed {
+				t.Fatal("socket write not observed")
+			}
+			if err := <-read; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+type writeObserverLog struct {
+	nullLog
+	observe func([]byte) func(int, error)
+}
+
+func (l writeObserverLog) OnOutgoingWrite(raw []byte) func(int, error) { return l.observe(raw) }
+
+type observedWriter func([]byte) (int, error)
+
+func (w observedWriter) Write(raw []byte) (int, error) { return w(raw) }
+
+func TestWriteObserverRunsAfterWriteAndPreservesResult(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		n    int
+		err  error
+	}{
+		{"success", 3, nil},
+		{"short write", 1, nil},
+		{"partial error", 1, io.ErrClosedPipe},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			started, returned, observed := false, false, false
+			log := writeObserverLog{observe: func(raw []byte) func(int, error) {
+				if string(raw) != "FIX" || returned {
+					t.Fatal("observer started at wrong boundary")
+				}
+				started = true
+				return func(n int, err error) {
+					if !returned || n != test.n || !errors.Is(err, test.err) {
+						t.Fatal("incorrect write completion")
+					}
+					observed = true
+				}
+			}}
+			writer := observedWriter(func(raw []byte) (int, error) {
+				if !started || observed || string(raw) != "FIX" {
+					t.Fatal("write was changed or observed early")
+				}
+				returned = true
+				return test.n, test.err
+			})
+			messages := make(chan []byte, 1)
+			messages <- []byte("FIX")
+			close(messages)
+			writeLoop(writer, messages, log)
+			if !observed {
+				t.Fatal("write completion missing")
+			}
+		})
+	}
+}
+
+func TestDisabledWriteObserverDoesNotChangeBytes(t *testing.T) {
+	var writer bytes.Buffer
+	messages := make(chan []byte, 1)
+	messages <- []byte("unchanged")
+	close(messages)
+	writeLoop(&writer, messages, writeObserverLog{observe: func([]byte) func(int, error) { return nil }})
+	if writer.String() != "unchanged" {
+		t.Fatal("disabled observer changed output")
+	}
+}
 
 func TestWriteLoop(t *testing.T) {
 	writer := bytes.NewBufferString("")
